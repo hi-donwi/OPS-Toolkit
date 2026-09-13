@@ -98,3 +98,20 @@ jobs:
         # Pinned: govulncheck is a security gate, so a floating @latest would let
         # the scanner itself change (or be tampered with) without review.
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  # Secret + dependency gate via the pinned agent-secure engine. The two
+  # sanitizer test fixtures are deliberate fake credentials; the allow entry
+  # is reviewable here and expires, exactly as an external operator policy
+  # would require.
+  agent-secure:
+    uses: hi-donwi/Agent-Secure/.github/workflows/agent-secure-gate.yml@dc9c533d6caade6b3e2f309cef473252c2daab3b
+    with:
+      root: .
+      engine_version: v0.1.1
+      gitleaks_version: 8.30.1
+      osv_scanner_version: 2.5.1
+      allow_json: |
+        [
+          {"scanner": "gitleaks", "id": "stripe-access-token", "file": "pkg/ai/sanitizer_test.go", "reason": "sanitizer unit-test fixture, not a live credential", "expires": "2027-03-13"},
+          {"scanner": "gitleaks", "id": "private-key", "file": "pkg/ai/sanitizer_test.go", "reason": "sanitizer unit-test fixture, not a live credential", "expires": "2027-03-13"}
+        ]
