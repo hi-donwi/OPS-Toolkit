@@ -1,6 +1,6 @@
 module github.com/hi-donwi/SRE-Toolkit
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -28,5 +28,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
+
+toolchain go1.26.6
