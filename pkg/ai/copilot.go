@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,12 +17,13 @@ import (
 
 // CopilotClient generates deep SRE incident briefings and runbooks.
 type CopilotClient struct {
-	Provider   string
-	OllamaURL  string
-	Model      string
-	APIKey     string
-	BaseURL    string
-	HTTPClient *http.Client
+	Provider    string
+	OllamaURL   string
+	Model       string
+	APIKey      string
+	BaseURL     string
+	HTTPClient  *http.Client
+	AllowRemote bool
 }
 
 // NewCopilotClient initializes the AI copilot client with multi-provider detection.
@@ -32,15 +35,7 @@ func NewCopilotClient() *CopilotClient {
 	anthropicKey := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
 
 	if provider == "" {
-		if geminiKey != "" {
-			provider = "gemini"
-		} else if openAIKey != "" {
-			provider = "openai"
-		} else if anthropicKey != "" {
-			provider = "anthropic"
-		} else {
-			provider = "ollama"
-		}
+		provider = "offline"
 	}
 
 	ollama := os.Getenv("OLLAMA_HOST")
@@ -80,25 +75,31 @@ func NewCopilotClient() *CopilotClient {
 		if modelName == "" {
 			modelName = "claude-3-5-haiku-20241022"
 		}
-	default: // ollama
-		provider = "ollama"
+	case "ollama":
 		if modelName == "" {
 			modelName = "llama3:latest"
 		}
 	}
 
 	return &CopilotClient{
-		Provider:   provider,
-		OllamaURL:  ollama,
-		Model:      modelName,
-		APIKey:     apiKey,
-		BaseURL:    baseURL,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		Provider:    provider,
+		OllamaURL:   ollama,
+		Model:       modelName,
+		APIKey:      apiKey,
+		BaseURL:     baseURL,
+		AllowRemote: os.Getenv("SRE_AI_ALLOW_REMOTE") == "1",
+		HTTPClient:  &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 	}
 }
 
 // ExplainFinding generates an actionable Incident Runbook and deep RCA for an SRE finding.
 func (c *CopilotClient) ExplainFinding(ctx context.Context, f model.Finding) (string, error) {
+	if err := c.validateEgress(); err != nil {
+		return "", err
+	}
+	if c.Provider == "offline" {
+		return SanitizeLog(c.generateHeuristicRunbook(f)), nil
+	}
 	sanitizedEvidence := SanitizeLog(f.LogEvidence)
 
 	prompt := fmt.Sprintf(`You are an elite Site Reliability Engineer (SRE).
@@ -121,6 +122,7 @@ Please format your response into the following Markdown sections:
 4. Permanent Remediation & Architecture Hardening
 5. Recommended Alerting SLOs & Preventative Monitoring
 `, f.ID, f.Title, f.TargetType, f.Resource, f.Severity, f.Symptom, f.RootCause, sanitizedEvidence)
+	prompt = SanitizeLog(prompt)
 
 	var response string
 	var err error
@@ -137,11 +139,48 @@ Please format your response into the following Markdown sections:
 	}
 
 	if err == nil && len(strings.TrimSpace(response)) > 50 {
-		return response, nil
+		return SanitizeLog(response), nil
 	}
 
 	// Fallback to built-in SRE Expert Knowledge Engine
-	return c.generateHeuristicRunbook(f), nil
+	return SanitizeLog(c.generateHeuristicRunbook(f)), nil
+}
+
+// A credential is authentication material, never permission to send incident data.
+func (c *CopilotClient) validateEgress() error {
+	if c.Provider == "offline" {
+		return nil
+	}
+	switch c.Provider {
+	case "ollama":
+		u, err := url.Parse(c.OllamaURL)
+		if err != nil || u.User != nil || u.Hostname() == "" {
+			return fmt.Errorf("invalid Ollama endpoint")
+		}
+		ip := net.ParseIP(u.Hostname())
+		local := u.Hostname() == "localhost" || (ip != nil && ip.IsLoopback())
+		if local && (u.Scheme == "http" || u.Scheme == "https") {
+			return nil
+		}
+		if !c.AllowRemote || u.Scheme != "https" {
+			return fmt.Errorf("remote Ollama requires HTTPS and SRE_AI_ALLOW_REMOTE=1")
+		}
+	case "openai":
+		u, err := url.Parse(c.BaseURL)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
+			return fmt.Errorf("remote AI endpoint requires HTTPS without embedded credentials")
+		}
+		if !c.AllowRemote {
+			return fmt.Errorf("remote AI requires SRE_AI_ALLOW_REMOTE=1 for approved data")
+		}
+	case "gemini", "anthropic":
+		if !c.AllowRemote {
+			return fmt.Errorf("remote AI requires SRE_AI_ALLOW_REMOTE=1 for approved data")
+		}
+	default:
+		return fmt.Errorf("unknown AI provider")
+	}
+	return nil
 }
 
 func (c *CopilotClient) queryOllama(ctx context.Context, prompt string) (string, error) {
