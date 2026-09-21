@@ -62,9 +62,9 @@ jobs:
           # -trimpath strips local filesystem paths so the same source and tag
           # produce the same bytes on any builder.
           LDFLAGS="-s -w \
-            -X 'github.com/donwi/srekit/cmd.Version=${TAG_NAME}' \
-            -X 'github.com/donwi/srekit/cmd.GitCommit=${COMMIT}' \
-            -X 'github.com/donwi/srekit/cmd.BuildDate=${BUILD_DATE}'"
+            -X 'github.com/hi-donwi/OPS-Toolkit/cmd.Version=${TAG_NAME}' \
+            -X 'github.com/hi-donwi/OPS-Toolkit/cmd.GitCommit=${COMMIT}' \
+            -X 'github.com/hi-donwi/OPS-Toolkit/cmd.BuildDate=${BUILD_DATE}'"
 
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             GOOS="${target%/*}"
@@ -72,13 +72,13 @@ jobs:
             echo "Building ${GOOS}/${GOARCH}..."
             GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 \
               go build -trimpath -ldflags="$LDFLAGS" \
-              -o "dist/srekit-${GOOS}-${GOARCH}" .
+              -o "dist/opskit-${GOOS}-${GOARCH}" .
           done
 
       - name: Confirm the Linux binaries are static
         run: |
           set -euo pipefail
-          for f in dist/srekit-linux-*; do
+          for f in dist/opskit-linux-*; do
             file "$f"
             file "$f" | grep -q "statically linked"
           done
@@ -86,11 +86,11 @@ jobs:
       - name: Smoke-test the native binary
         run: |
           set -euo pipefail
-          chmod +x dist/srekit-linux-amd64
-          ./dist/srekit-linux-amd64 version
+          chmod +x dist/opskit-linux-amd64
+          ./dist/opskit-linux-amd64 version
           # `diag host` exercises the procfs and statfs rules on a real Linux
           # kernel, so a tag cannot publish a binary that panics on startup.
-          ./dist/srekit-linux-amd64 diag host --no-color
+          ./dist/opskit-linux-amd64 diag host --no-color
 
       - name: Bundle licence files with the release
         # Apache-2.0 section 4 requires the licence and NOTICE to travel with
@@ -101,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum srekit-* > checksums.txt
+          sha256sum opskit-* > checksums.txt
           cat checksums.txt
 
       - name: Publish GitHub release

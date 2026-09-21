@@ -1,6 +1,6 @@
 # Example custom rules.
 #
-# Files in ./rules.d and ~/.srekit/rules.d are loaded at runtime; no rebuild is
+# Files in ./rules.d and ~/.opskit/rules.d are loaded at runtime; no rebuild is
 # needed. A file may hold several rules separated by `---`.
 #
 # Every condition a rule declares must hold for it to fire — conditions are

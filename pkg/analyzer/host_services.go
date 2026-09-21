@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // -----------------------------------------------------------------------------
@@ -36,7 +36,7 @@ func (e *Engine) checkDNS(ctx context.Context) []model.Finding {
 			RemedySteps: []string{
 				"Inspect the configured nameservers: cat /etc/resolv.conf",
 				"Check the local stub resolver: systemctl status systemd-resolved",
-				"Override the probe target with SREKIT_DNS_PROBE if this host is intentionally air-gapped",
+				"Override the probe target with OPSKIT_DNS_PROBE if this host is intentionally air-gapped",
 			},
 			QuickFixCmd: "systemctl restart systemd-resolved",
 		}}
@@ -69,10 +69,7 @@ func (e *Engine) checkDNS(ctx context.Context) []model.Finding {
 // split-horizon estates must be able to point this at a name they can actually
 // resolve, otherwise every run reports a false CRITICAL.
 func dnsProbeDomain() string {
-	if custom := strings.TrimSpace(os.Getenv("SREKIT_DNS_PROBE")); custom != "" {
-		return custom
-	}
-	if custom := strings.TrimSpace(os.Getenv("SRECTL_DNS_PROBE")); custom != "" {
+	if custom := strings.TrimSpace(os.Getenv("OPSKIT_DNS_PROBE")); custom != "" {
 		return custom
 	}
 	return "google.com"

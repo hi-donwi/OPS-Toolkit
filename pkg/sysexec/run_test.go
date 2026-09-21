@@ -68,7 +68,7 @@ func TestRealAvailable(t *testing.T) {
 	if !(Real{}).Available("sh") {
 		t.Error("sh should be available")
 	}
-	if (Real{}).Available("srekit-definitely-not-a-real-binary") {
+	if (Real{}).Available("opskit-definitely-not-a-real-binary") {
 		t.Fatal("nonexistent binary reported as available")
 	}
 }

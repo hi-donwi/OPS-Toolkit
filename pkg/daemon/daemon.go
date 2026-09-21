@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // DefaultSuppressWindow is how long a given finding stays suppressed after it
@@ -56,7 +56,7 @@ func (d *Daemon) pruneSeenAlerts(now time.Time) {
 
 // Start begins the monitoring loop.
 func (d *Daemon) Start(ctx context.Context) {
-	fmt.Printf("[srekit-daemon] Starting continuous monitoring (interval: %s, threshold: %s)\n", d.Interval, d.AlertOn)
+	fmt.Printf("[opskit-daemon] Starting continuous monitoring (interval: %s, threshold: %s)\n", d.Interval, d.AlertOn)
 	ticker := time.NewTicker(d.Interval)
 	defer ticker.Stop()
 
@@ -66,7 +66,7 @@ func (d *Daemon) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("[srekit-daemon] Stopping daemon loop.")
+			fmt.Println("[opskit-daemon] Stopping daemon loop.")
 			return
 		case <-ticker.C:
 			d.checkAndAlert(ctx)
@@ -82,7 +82,7 @@ func (d *Daemon) checkAndAlert(ctx context.Context) {
 		if ctx.Err() != nil {
 			return // shutting down; not a diagnostic failure
 		}
-		fmt.Printf("[srekit-daemon] Diagnostic error: %v\n", err)
+		fmt.Printf("[opskit-daemon] Diagnostic error: %v\n", err)
 		return
 	}
 
@@ -114,7 +114,7 @@ func (d *Daemon) checkAndAlert(ctx context.Context) {
 	d.pruneSeenAlerts(now)
 
 	if len(newAlerts) > 0 {
-		fmt.Printf("[srekit-daemon] Found %d new actionable alert(s) at %s\n", len(newAlerts), now.Format("15:04:05"))
+		fmt.Printf("[opskit-daemon] Found %d new actionable alert(s) at %s\n", len(newAlerts), now.Format("15:04:05"))
 		if d.WebhookURL != "" {
 			d.dispatchWebhook(ctx, newAlerts, rep)
 		}
@@ -122,7 +122,7 @@ func (d *Daemon) checkAndAlert(ctx context.Context) {
 }
 
 func (d *Daemon) buildWebhookPayload(alerts []model.Finding, rep *model.Report) any {
-	headline := fmt.Sprintf("[ALERT] [srekit] %d new infrastructure issues detected on `%s` (%s)",
+	headline := fmt.Sprintf("[ALERT] [opskit] %d new infrastructure issues detected on `%s` (%s)",
 		len(alerts), rep.Environment.Distro, rep.Environment.Platform)
 
 	urlLower := strings.ToLower(d.WebhookURL)
@@ -190,7 +190,7 @@ func (d *Daemon) buildWebhookPayload(alerts []model.Finding, rep *model.Report) 
 				"color":     color,
 				"title":     fmt.Sprintf("[%s] %s", f.ID, f.Title),
 				"text":      text,
-				"footer":    "srekit continuous monitoring",
+				"footer":    "opskit continuous monitoring",
 				"ts":        time.Now().Unix(),
 				"mrkdwn_in": []string{"text"},
 			})
@@ -232,13 +232,13 @@ func (d *Daemon) dispatchWebhook(ctx context.Context, alerts []model.Finding, re
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		fmt.Printf("[srekit-daemon] Error marshaling webhook: %v\n", err)
+		fmt.Printf("[opskit-daemon] Error marshaling webhook: %v\n", err)
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.WebhookURL, bytes.NewReader(body))
 	if err != nil {
-		fmt.Printf("[srekit-daemon] Invalid webhook URL: %v\n", err)
+		fmt.Printf("[opskit-daemon] Invalid webhook URL: %v\n", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -246,16 +246,16 @@ func (d *Daemon) dispatchWebhook(ctx context.Context, alerts []model.Finding, re
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("[srekit-daemon] Webhook delivery failed: %v\n", err)
+		fmt.Printf("[opskit-daemon] Webhook delivery failed: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		fmt.Printf("[srekit-daemon] Webhook rejected the payload (status: %s)\n", resp.Status)
+		fmt.Printf("[opskit-daemon] Webhook rejected the payload (status: %s)\n", resp.Status)
 		return
 	}
 
-	fmt.Printf("[srekit-daemon] Webhook delivered successfully (status: %s)\n", resp.Status)
+	fmt.Printf("[opskit-daemon] Webhook delivered successfully (status: %s)\n", resp.Status)
 }

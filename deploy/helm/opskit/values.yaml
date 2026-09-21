@@ -1,7 +1,7 @@
-# Default values for srekit Helm Chart
+# Default values for opskit Helm Chart
 
 image:
-  repository: ghcr.io/donwi/srekit
+  repository: ghcr.io/donwi/opskit
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -27,7 +27,7 @@ service:
 serviceAccount:
   create: true
   annotations: {}
-  name: "srekit-agent"
+  name: "opskit-agent"
 
 rbac:
   create: true
@@ -50,6 +50,6 @@ tolerations:
 affinity: {}
 
 # Additional environment variables for the agent container.
-# SREKIT_PROC_ROOT is set by the chart; override it only if you mount the host
+# OPSKIT_PROC_ROOT is set by the chart; override it only if you mount the host
 # procfs somewhere other than /host/proc.
 extraEnv: []

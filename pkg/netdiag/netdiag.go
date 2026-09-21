@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // DNSCheckResult holds latency and status for a specific nameserver.
@@ -72,7 +72,7 @@ func RunNetworkAudit(target string) *NetworkReport {
 		Findings:   make([]model.Finding, 0),
 	}
 
-	// 1. Benchmark DNS (pass "" to respect SREKIT_DNS_PROBE if configured)
+	// 1. Benchmark DNS (pass "" to respect OPSKIT_DNS_PROBE if configured)
 	report.DNSResults = BenchmarkDNS("")
 	for _, dns := range report.DNSResults {
 		if !dns.Success {
@@ -166,7 +166,7 @@ func evaluateMTU(target string, reachable bool, results []MTUCheckResult) []mode
 			Symptom:    fmt.Sprintf("%s does not answer even a minimum-size ICMP echo, so packet-size probes carry no information.", target),
 			RootCause:  "ICMP echo is filtered by the target, a firewall, or a cloud security group. This is a limitation of the probe, not a fault in the network path.",
 			RemedySteps: []string{
-				"Re-run against a host that answers ICMP: srekit net mtu <reachable-host>",
+				"Re-run against a host that answers ICMP: opskit net mtu <reachable-host>",
 				"Inside a Swarm or Kubernetes overlay, probe another node's overlay IP rather than a public address",
 			},
 		}}
@@ -229,9 +229,7 @@ func BenchmarkDNS(domain string) []DNSCheckResult {
 // BenchmarkDNSContext queries nameservers concurrently under the provided context deadline.
 func BenchmarkDNSContext(ctx context.Context, domain string) []DNSCheckResult {
 	if domain == "" {
-		if envDomain := strings.TrimSpace(os.Getenv("SREKIT_DNS_PROBE")); envDomain != "" {
-			domain = envDomain
-		} else if envDomain := strings.TrimSpace(os.Getenv("SRECTL_DNS_PROBE")); envDomain != "" {
+		if envDomain := strings.TrimSpace(os.Getenv("OPSKIT_DNS_PROBE")); envDomain != "" {
 			domain = envDomain
 		} else {
 			domain = "google.com"

@@ -1,4 +1,4 @@
-# srekit specification
+# opskit specification
 
 The authoritative reference for rule IDs, thresholds, and the data contract.
 Design reasoning lives in [PLANNING.md](PLANNING.md); usage lives in
@@ -117,7 +117,7 @@ otherwise tie a test to the host it runs on:
 | Option | Replaces |
 |---|---|
 | `WithRunner` | External command execution |
-| `WithProcRoot` | The procfs mount point (also settable at runtime via `SREKIT_PROC_ROOT`) |
+| `WithProcRoot` | The procfs mount point (also settable at runtime via `OPSKIT_PROC_ROOT`) |
 | `WithStatfs` | Filesystem usage probing |
 | `WithResolver` | DNS lookups |
 | `WithClock` | `time.Now` |
@@ -178,7 +178,7 @@ result so the operator can see the check ran; the rest fire only on a fault.
 - `HOST-MEM-002` derives pressure from `MemAvailable`, which accounts for
   reclaimable page cache. Deriving it from `MemFree` reports a healthy host as
   nearly out of memory.
-- `HOST-DNS-001` resolves `google.com` by default. Set `SREKIT_DNS_PROBE` to a
+- `HOST-DNS-001` resolves `google.com` by default. Set `OPSKIT_DNS_PROBE` to a
   name the host can actually resolve on air-gapped or split-horizon estates.
 
 ### 4.2. Docker (`DOC-*`)
@@ -279,7 +279,7 @@ MTU fault.
 
 ## 5. Command behaviour
 
-### 5.1. `srekit fix`
+### 5.1. `opskit fix`
 
 Collects `QuickFixCmd` from active findings, skipping `PASS` results and
 collapsing duplicate commands. Each is graded by what it can destroy:
@@ -299,10 +299,10 @@ with stdin not a terminal and no `-y`, the command refuses rather than reading
 approval from whatever happens to be piped in. Exits non-zero if any fix fails.
 
 Commands run through `sh -c` because the curated fixes use shell operators. They
-originate from srekit's own rules and from rule files the operator wrote, and
+originate from opskit's own rules and from rule files the operator wrote, and
 each is bounded by a 60-second timeout.
 
-### 5.2. `srekit verify`
+### 5.2. `opskit verify`
 
 Evaluates findings against `--fail-on`, which accepts `critical`, `warning`, or
 `info`. An unrecognised value is rejected — it is not treated as `critical`.
@@ -313,22 +313,22 @@ Evaluates findings against `--fail-on`, which accepts `critical`, `warning`, or
 | `1` | Threshold breached |
 | `2` | The run itself failed (cancelled, timed out, errored) |
 
-### 5.3. `srekit export-metrics`
+### 5.3. `opskit export-metrics`
 
 HTTP server on `:9876`, `/metrics` and `/healthz`. Evaluates on start and every
-`--interval`. Series: `srekit_up`, `srekit_findings_total{target,severity}`,
-`srekit_severity_count{severity}`,
-`srekit_finding_active{id,severity,target,resource,namespace}`,
-`srekit_health_score`, `srekit_last_evaluation_timestamp_seconds`,
-`srekit_evaluation_errors_total`.
+`--interval`. Series: `opskit_up`, `opskit_findings_total{target,severity}`,
+`opskit_severity_count{severity}`,
+`opskit_finding_active{id,severity,target,resource,namespace}`,
+`opskit_health_score`, `opskit_last_evaluation_timestamp_seconds`,
+`opskit_evaluation_errors_total`.
 
 Label values are escaped and duplicate series collapsed, so a quote or newline
 in a resource name cannot corrupt the scrape. `PASS` findings are excluded from
-`srekit_finding_active` to bound cardinality. Output ordering is deterministic.
+`opskit_finding_active` to bound cardinality. Output ordering is deterministic.
 
 `SIGTERM` triggers a graceful shutdown and the process exits `0`.
 
-### 5.4. `srekit daemon`
+### 5.4. `opskit daemon`
 
 Evaluates every `--interval` and posts new findings at or above `--alert-on` to
 `--webhook-url`. A finding is suppressed for 30 minutes after alerting, keyed on

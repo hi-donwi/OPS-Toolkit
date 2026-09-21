@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/netdiag"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/report"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/netdiag"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/report"
 	"github.com/spf13/cobra"
 )
 
@@ -31,10 +31,10 @@ var netCmd = &cobra.Command{
 3. Path MTU Discovery with Don't Fragment (DF) packets to detect Docker Swarm VXLAN (1450) or CNI packet drops.
 
 Example:
-  srekit net
-  srekit net 1.1.1.1
-  srekit net dns google.com
-  srekit net mtu 10.0.0.1`,
+  opskit net
+  opskit net 1.1.1.1
+  opskit net dns google.com
+  opskit net mtu 10.0.0.1`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := defaultNetTarget
 		if len(args) > 0 {
@@ -52,9 +52,7 @@ var netDNSCmd = &cobra.Command{
 		domain := ""
 		if len(args) > 0 {
 			domain = args[0]
-		} else if envDomain := strings.TrimSpace(os.Getenv("SREKIT_DNS_PROBE")); envDomain != "" {
-			domain = envDomain
-		} else if envDomain := strings.TrimSpace(os.Getenv("SRECTL_DNS_PROBE")); envDomain != "" {
+		} else if envDomain := strings.TrimSpace(os.Getenv("OPSKIT_DNS_PROBE")); envDomain != "" {
 			domain = envDomain
 		} else {
 			domain = "google.com"
@@ -185,7 +183,7 @@ func runNetworkSuite(target string) error {
 
 	// Print Summary Tables
 	fmt.Printf("\n================================================================================\n")
-	fmt.Printf("               SREKIT NETWORK CONNECTIVITY & MTU DIAGNOSTICS                    \n")
+	fmt.Printf("               OPSKIT NETWORK CONNECTIVITY & MTU DIAGNOSTICS                    \n")
 	fmt.Printf("================================================================================\n")
 	fmt.Printf("Target Host:       %s\n", target)
 	if netRep.ICMPReachable && netRep.MaxSafeMTU > 0 {

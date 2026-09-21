@@ -1,8 +1,8 @@
 version: "3.8"
 
 services:
-  srekit-agent:
-    image: ghcr.io/donwi/srekit:latest
+  opskit-agent:
+    image: ghcr.io/donwi/opskit:latest
     command:
       - daemon
       - --interval=60s
@@ -16,7 +16,7 @@ services:
       - TZ=UTC
       # Inside the container, /proc describes the container. Point the host
       # rules at the node's procfs, bind-mounted below.
-      - SREKIT_PROC_ROOT=/host/proc
+      - OPSKIT_PROC_ROOT=/host/proc
     deploy:
       mode: global
       restart_policy:
@@ -32,8 +32,8 @@ services:
           cpus: "0.05"
           memory: 24M
 
-  srekit-metrics:
-    image: ghcr.io/donwi/srekit:latest
+  opskit-metrics:
+    image: ghcr.io/donwi/opskit:latest
     command:
       - export-metrics
       - --port=9876
@@ -44,7 +44,7 @@ services:
         mode: host
     environment:
       - TZ=UTC
-      - SREKIT_PROC_ROOT=/host/proc
+      - OPSKIT_PROC_ROOT=/host/proc
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc:/host/proc:ro

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 func writeRule(t *testing.T, dir, name, body string) {
@@ -193,19 +193,19 @@ func TestEvaluateConditionsFileNotContains(t *testing.T) {
 }
 
 func TestEvaluateConditionsEnvChecks(t *testing.T) {
-	t.Setenv("SREKIT_TEST_MODE", "production")
+	t.Setenv("OPSKIT_TEST_MODE", "production")
 
-	matched, _ := evaluateConditions(CustomRuleCondition{EnvEquals: "SREKIT_TEST_MODE=production"})
+	matched, _ := evaluateConditions(CustomRuleCondition{EnvEquals: "OPSKIT_TEST_MODE=production"})
 	if !matched {
 		t.Error("env_equals should match the exported value")
 	}
 
-	matched, _ = evaluateConditions(CustomRuleCondition{EnvEquals: "SREKIT_TEST_MODE=staging"})
+	matched, _ = evaluateConditions(CustomRuleCondition{EnvEquals: "OPSKIT_TEST_MODE=staging"})
 	if matched {
 		t.Error("env_equals must not match a different value")
 	}
 
-	matched, _ = evaluateConditions(CustomRuleCondition{EnvNotSet: "SREKIT_TEST_MODE"})
+	matched, _ = evaluateConditions(CustomRuleCondition{EnvNotSet: "OPSKIT_TEST_MODE"})
 	if matched {
 		t.Error("env_not_set must not fire for a variable that is set")
 	}

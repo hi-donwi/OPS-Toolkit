@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // DefaultTimeout bounds a single remediation command.
@@ -110,7 +110,7 @@ func PlanFixes(findings []model.Finding) []FixPlan {
 // ExecuteFix runs the remediation command, or describes it when dryRun is set.
 //
 // Commands are run through `sh -c` because the curated fixes use shell operators
-// (pipes, &&). They originate from srekit's own rule set and from rule files the
+// (pipes, &&). They originate from opskit's own rule set and from rule files the
 // operator authored, so they are trusted input — but they are still gated behind
 // an explicit confirmation in the CLI rather than run automatically.
 func ExecuteFix(ctx context.Context, plan *FixPlan, dryRun bool) error {

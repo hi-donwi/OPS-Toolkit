@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/report"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/report"
 	"github.com/spf13/cobra"
 )
 

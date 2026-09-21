@@ -1,5 +1,5 @@
-name: 'srekit SRE Verification Action'
-description: 'SRE Toolkit automated pre-flight and post-deployment SRE health and security quality gate'
+name: 'opskit SRE Verification Action'
+description: 'OPS Toolkit automated pre-flight and post-deployment SRE health and security quality gate'
 author: 'Doni Wicaksono'
 branding:
   icon: 'activity'
@@ -7,11 +7,11 @@ branding:
 
 inputs:
   version:
-    description: 'srekit version to download'
+    description: 'opskit version to download'
     required: false
     default: 'latest'
   command:
-    description: 'srekit subcommand to run (verify, diag, audit)'
+    description: 'opskit subcommand to run (verify, diag, audit)'
     required: false
     default: 'verify'
   fail-on:
@@ -26,34 +26,34 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Download and Install srekit
+    - name: Download and Install opskit
       shell: bash
       env:
-        SREKIT_VERSION: ${{ inputs.version }}
+        OPSKIT_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        curl -fsSL https://raw.githubusercontent.com/hi-donwi/SRE-Toolkit/main/install.sh -o /tmp/srekit-install.sh
-        SREKIT_VERSION="$SREKIT_VERSION" bash /tmp/srekit-install.sh
+        curl -fsSL https://raw.githubusercontent.com/hi-donwi/OPS-Toolkit/main/install.sh -o /tmp/opskit-install.sh
+        OPSKIT_VERSION="$OPSKIT_VERSION" bash /tmp/opskit-install.sh
 
-    - name: Execute srekit Quality Gate
+    - name: Execute opskit Quality Gate
       shell: bash
       env:
         # Inputs are passed through the environment rather than interpolated
         # into the command line: `${{ }}` expansion happens before the shell
         # runs, so a value containing shell metacharacters would execute.
-        SREKIT_COMMAND: ${{ inputs.command }}
-        SREKIT_FAIL_ON: ${{ inputs.fail-on }}
-        SREKIT_NAMESPACE: ${{ inputs.namespace }}
+        OPSKIT_COMMAND: ${{ inputs.command }}
+        OPSKIT_FAIL_ON: ${{ inputs.fail-on }}
+        OPSKIT_NAMESPACE: ${{ inputs.namespace }}
       run: |
         set -euo pipefail
 
         args=()
-        if [ -n "$SREKIT_NAMESPACE" ]; then
-          args+=(-n "$SREKIT_NAMESPACE")
+        if [ -n "$OPSKIT_NAMESPACE" ]; then
+          args+=(-n "$OPSKIT_NAMESPACE")
         fi
 
-        if [ "$SREKIT_COMMAND" = "verify" ]; then
-          srekit verify --fail-on "$SREKIT_FAIL_ON" "${args[@]}"
+        if [ "$OPSKIT_COMMAND" = "verify" ]; then
+          opskit verify --fail-on "$OPSKIT_FAIL_ON" "${args[@]}"
         else
-          srekit "$SREKIT_COMMAND" "${args[@]}"
+          opskit "$OPSKIT_COMMAND" "${args[@]}"
         fi

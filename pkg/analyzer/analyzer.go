@@ -1,4 +1,4 @@
-// Package analyzer holds the srekit rule engine: it turns raw host, container,
+// Package analyzer holds the opskit rule engine: it turns raw host, container,
 // and cluster telemetry into scored model.Finding results with root-cause
 // analysis and remediation guidance.
 //
@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/sysexec"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/sysexec"
 )
 
 // Engine orchestrates diagnostic rule evaluation across targets.
@@ -66,13 +66,13 @@ const DefaultProcRoot = "/proc"
 // Inside a container, "/proc" is the container's own view: its meminfo, load
 // average, mounts, and socket tables describe the container, not the node. The
 // DaemonSet and Swarm manifests therefore bind-mount the host's /proc and set
-// SREKIT_PROC_ROOT so the host rules measure the machine they are deployed to
+// OPSKIT_PROC_ROOT so the host rules measure the machine they are deployed to
 // diagnose.
 func ProcRootFromEnv() string {
-	if custom := strings.TrimSpace(os.Getenv("SREKIT_PROC_ROOT")); custom != "" {
+	if custom := strings.TrimSpace(os.Getenv("OPSKIT_PROC_ROOT")); custom != "" {
 		return custom
 	}
-	if custom := strings.TrimSpace(os.Getenv("SRECTL_PROC_ROOT")); custom != "" {
+	if custom := strings.TrimSpace(os.Getenv("OPSKIT_PROC_ROOT")); custom != "" {
 		return custom
 	}
 	return DefaultProcRoot
@@ -161,7 +161,7 @@ func (e *Engine) RunDiagnostics(ctx context.Context, targetFilter model.TargetTy
 	return report, nil
 }
 
-// evaluateCustomRuleDirs loads user rules from ./rules.d and ~/.srekit/rules.d (or legacy ~/.srectl/rules.d),
+// evaluateCustomRuleDirs loads user rules from ./rules.d and ~/.opskit/rules.d,
 // filtered by targetFilter if specified.
 func (e *Engine) evaluateCustomRuleDirs(targetFilter model.TargetType) []model.Finding {
 	rules, err := LoadCustomRules("rules.d")
@@ -170,14 +170,7 @@ func (e *Engine) evaluateCustomRuleDirs(targetFilter model.TargetType) []model.F
 		problems = append(problems, err.Error())
 	}
 	if home, errHome := os.UserHomeDir(); errHome == nil {
-		srekitDir := filepath.Join(home, ".srekit", "rules.d")
-		srectlDir := filepath.Join(home, ".srectl", "rules.d")
-		homeDir := srekitDir
-		if _, statErr := os.Stat(srekitDir); os.IsNotExist(statErr) {
-			if _, legacyErr := os.Stat(srectlDir); legacyErr == nil {
-				homeDir = srectlDir
-			}
-		}
+		homeDir := filepath.Join(home, ".opskit", "rules.d")
 		homeRules, errLoad := LoadCustomRules(homeDir)
 		if errLoad != nil {
 			problems = append(problems, errLoad.Error())

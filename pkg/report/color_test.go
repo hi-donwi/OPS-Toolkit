@@ -23,7 +23,7 @@ func TestColorsRespectNoColorEnv(t *testing.T) {
 
 func TestColorsSuppressedWhenNotATerminal(t *testing.T) {
 	// `go test` does not run with a terminal on stdout, which is the same
-	// situation as `srekit diag > report.txt` or a CI log. Escape sequences
+	// situation as `opskit diag > report.txt` or a CI log. Escape sequences
 	// there are noise nothing will interpret.
 	if got := Colors(false); got != plain {
 		t.Error("output that is not going to a terminal must not carry ANSI codes")

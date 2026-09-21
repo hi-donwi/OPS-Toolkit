@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/exporter"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/exporter"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,7 @@ with cluster and host health metrics.`,
 		}()
 
 		server := exporter.NewMetricsServer(metricsPort, interval)
-		fmt.Printf("srekit Prometheus exporter listening on http://0.0.0.0:%d/metrics (refresh interval: %s)\n", metricsPort, interval)
+		fmt.Printf("opskit Prometheus exporter listening on http://0.0.0.0:%d/metrics (refresh interval: %s)\n", metricsPort, interval)
 		return server.Start(ctx)
 	},
 }

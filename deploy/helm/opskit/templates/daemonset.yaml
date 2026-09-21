@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "srekit.fullname" . }}
+  name: {{ include "opskit.fullname" . }}
   labels:
-    {{- include "srekit.labels" . | nindent 4 }}
+    {{- include "opskit.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "srekit.selectorLabels" . | nindent 6 }}
+      {{- include "opskit.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "srekit.selectorLabels" . | nindent 8 }}
+        {{- include "opskit.selectorLabels" . | nindent 8 }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ .Values.metrics.port }}"
         prometheus.io/path: "{{ .Values.metrics.path }}"
     spec:
-      serviceAccountName: {{ default (include "srekit.fullname" .) .Values.serviceAccount.name }}
+      serviceAccountName: {{ default (include "opskit.fullname" .) .Values.serviceAccount.name }}
       hostPID: true
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -26,14 +26,14 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
-            - /usr/local/bin/srekit
+            - /usr/local/bin/opskit
             - export-metrics
             - --port={{ .Values.metrics.port }}
             - --interval={{ .Values.metrics.interval }}
           env:
             # Inside the container, /proc describes the container. Point the
             # host rules at the node's procfs, bind-mounted below.
-            - name: SREKIT_PROC_ROOT
+            - name: OPSKIT_PROC_ROOT
               value: /host/proc
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}

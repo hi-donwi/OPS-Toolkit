@@ -1,12 +1,12 @@
 [Unit]
-Description=srekit SRE Diagnostic & Health Monitoring Daemon
+Description=opskit SRE Diagnostic & Health Monitoring Daemon
 After=network.target docker.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/srekit daemon --interval=60s --alert-on=critical
+ExecStart=/usr/local/bin/opskit daemon --interval=60s --alert-on=critical
 Restart=always
 RestartSec=10s
 

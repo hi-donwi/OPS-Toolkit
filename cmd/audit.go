@@ -5,11 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/report"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/security"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/report"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/security"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +36,7 @@ var auditCertsCmd = &cobra.Command{
 	Use:   "certs [target-host:port]",
 	Short: "Audit SSL/TLS certificate validity and expiration (local paths or remote endpoint)",
 	Long: `certs scans local system certificate paths (/etc/ssl/certs, /etc/letsencrypt)
-or connects directly to a specified remote TLS host (e.g. srekit audit certs google.com:443)
+or connects directly to a specified remote TLS host (e.g. opskit audit certs google.com:443)
 to check days remaining until expiration and certificate trust chains.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		start := time.Now()

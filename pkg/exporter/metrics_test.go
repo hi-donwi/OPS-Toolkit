@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 func sampleReport() *model.Report {
@@ -36,13 +36,13 @@ func TestWriteMetricsEmitsCoreSeries(t *testing.T) {
 	out := render(t, sampleReport())
 
 	for _, want := range []string{
-		"srekit_up 1",
-		"srekit_findings_total",
-		"srekit_severity_count",
-		"srekit_health_score",
-		"srekit_last_evaluation_timestamp_seconds",
-		"srekit_evaluation_errors_total",
-		"srekit_finding_active",
+		"opskit_up 1",
+		"opskit_findings_total",
+		"opskit_severity_count",
+		"opskit_health_score",
+		"opskit_last_evaluation_timestamp_seconds",
+		"opskit_evaluation_errors_total",
+		"opskit_finding_active",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing metric %q in output", want)
@@ -60,10 +60,10 @@ func TestWriteMetricsSeveritySummary(t *testing.T) {
 	out := render(t, sampleReport())
 
 	for _, want := range []string{
-		`srekit_severity_count{severity="CRITICAL"} 1`,
-		`srekit_severity_count{severity="WARNING"} 2`,
-		`srekit_severity_count{severity="INFO"} 1`,
-		`srekit_severity_count{severity="PASS"} 10`,
+		`opskit_severity_count{severity="CRITICAL"} 1`,
+		`opskit_severity_count{severity="WARNING"} 2`,
+		`opskit_severity_count{severity="INFO"} 1`,
+		`opskit_severity_count{severity="PASS"} 10`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing line: %s", want)
@@ -75,10 +75,10 @@ func TestWriteMetricsOmitsPassFromActiveFindings(t *testing.T) {
 	out := render(t, sampleReport())
 
 	// PASS rows would multiply series cardinality for no alerting value.
-	if strings.Contains(out, `srekit_finding_active{id="HOST-DNS-001"`) {
+	if strings.Contains(out, `opskit_finding_active{id="HOST-DNS-001"`) {
 		t.Error("PASS findings must not be emitted as active findings")
 	}
-	if !strings.Contains(out, `srekit_finding_active{id="HOST-DSK-001"`) {
+	if !strings.Contains(out, `opskit_finding_active{id="HOST-DSK-001"`) {
 		t.Error("critical findings must be emitted as active findings")
 	}
 }
@@ -107,7 +107,7 @@ func TestWriteMetricsDeduplicatesIdenticalSeries(t *testing.T) {
 	}
 
 	out := render(t, rep)
-	if got := strings.Count(out, "srekit_finding_active{"); got != 1 {
+	if got := strings.Count(out, "opskit_finding_active{"); got != 1 {
 		t.Errorf("emitted %d active-finding series, want 1 after de-duplication", got)
 	}
 }
@@ -144,7 +144,7 @@ func TestEscapeLabelKeepsExpositionParseable(t *testing.T) {
 
 	out := render(t, rep)
 	for _, line := range strings.Split(out, "\n") {
-		if !strings.HasPrefix(line, "srekit_finding_active{") {
+		if !strings.HasPrefix(line, "opskit_finding_active{") {
 			continue
 		}
 		// A correctly escaped line has exactly one unescaped quote per label
@@ -185,8 +185,8 @@ func TestHandleMetricsBeforeFirstEvaluation(t *testing.T) {
 	s.handleMetrics(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "srekit_up 0") {
-		t.Errorf("expected srekit_up 0 before the first evaluation, got:\n%s", body)
+	if !strings.Contains(body, "opskit_up 0") {
+		t.Errorf("expected opskit_up 0 before the first evaluation, got:\n%s", body)
 	}
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
 		t.Errorf("Content-Type = %q, want the Prometheus text exposition type", ct)

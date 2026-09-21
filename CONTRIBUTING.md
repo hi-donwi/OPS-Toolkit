@@ -77,7 +77,7 @@ field earns its place:
   further*, not *change something*. Give the exact command.
 - **QuickFixCmd** — only when it is genuinely safe and genuinely fixes the
   finding. Leave it empty rather than offering something destructive; it feeds
-  `srekit fix`, which will run it.
+  `opskit fix`, which will run it.
 
 Severity: `CRITICAL` means something is broken or about to be. `WARNING` means
 it will break if nothing changes. `INFO` is context. Grade-inflating a rule

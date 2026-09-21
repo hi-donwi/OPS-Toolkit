@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/daemon"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ var (
 var daemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "Run continuous background health watcher with webhook alerting",
-	Long: `daemon runs srekit as an autonomous background monitoring service.
+	Long: `daemon runs opskit as an autonomous background monitoring service.
 It continuously evaluates host, container, and cluster health at defined intervals
 and sends instant alert notifications to Slack, Discord, Telegram, or custom webhooks
 whenever a critical issue or crashloop is detected.`,

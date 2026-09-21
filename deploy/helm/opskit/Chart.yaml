@@ -1,5 +1,5 @@
 apiVersion: v2
-name: srekit
+name: opskit
 description: Enterprise SRE Control, Diagnostics Agent, and Prometheus Metrics Exporter
 type: application
 version: 0.1.0
@@ -10,8 +10,8 @@ keywords:
   - monitoring
   - troubleshooting
   - prometheus
-home: https://github.com/hi-donwi/SRE-Toolkit
+home: https://github.com/hi-donwi/OPS-Toolkit
 sources:
-  - https://github.com/hi-donwi/SRE-Toolkit
+  - https://github.com/hi-donwi/OPS-Toolkit
 maintainers:
   - name: Donwi

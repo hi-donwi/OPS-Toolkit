@@ -15,8 +15,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: Output of `srectl version`
-      placeholder: "srectl version v0.1.0 (commit: abc1234, built: ...)"
+      description: Output of `opskit version`
+      placeholder: "opskit version v0.1.0 (commit: abc1234, built: ...)"
     validations:
       required: true
 

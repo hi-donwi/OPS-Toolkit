@@ -1,6 +1,6 @@
-# srekit — SRE Toolkit
+# opskit — OPS Toolkit
 
-[![CI](https://github.com/hi-donwi/SRE-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/hi-donwi/SRE-Toolkit/actions/workflows/ci.yml)
+[![CI](https://github.com/hi-donwi/OPS-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/hi-donwi/OPS-Toolkit/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)]()
@@ -11,7 +11,7 @@ Kubernetes.
 When something breaks at 3am you usually end up running the same twenty
 commands — `dmesg`, `journalctl -u`, `docker inspect`, `docker service ps`,
 `kubectl describe`, `kubectl logs --previous`, `df -ih`, `ss -tan` — and piecing
-the story together by hand. `srekit` runs those checks for you and reports what
+the story together by hand. `opskit` runs those checks for you and reports what
 it found: the symptom, the mechanism behind it, the evidence, and what to do
 about it.
 
@@ -19,7 +19,7 @@ It ships as a single static binary with no runtime dependencies, so you can
 `scp` it onto a sick host and run it there.
 
 ```
-$ srekit diag
+$ opskit diag
 Summary:  2 CRITICAL, 1 WARNING, 14 PASS
 
 [CRITICAL] #1: Kernel OOM-Killer Terminated Process: node (process:node)
@@ -81,7 +81,7 @@ for why.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hi-donwi/SRE-Toolkit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hi-donwi/OPS-Toolkit/main/install.sh | bash
 ```
 
 The installer picks the binary for your platform and checks its SHA-256 against
@@ -90,16 +90,16 @@ it cannot verify.
 
 | Variable | Default | |
 |---|---|---|
-| `SREKIT_VERSION` | `latest` | Install a specific tag. A tag with no matching build is an error, not a quiet fallback. |
+| `OPSKIT_VERSION` | `latest` | Install a specific tag. A tag with no matching build is an error, not a quiet fallback. |
 | `INSTALL_DIR` | `/usr/local/bin` | Where to put it. |
-| `SREKIT_SKIP_CHECKSUM` | unset | Set to `1` to skip verification. Don't. |
+| `OPSKIT_SKIP_CHECKSUM` | unset | Set to `1` to skip verification. Don't. |
 
 ### From source
 
 Needs Go 1.25 or later and nothing else.
 
 ```bash
-make build          # ./bin/srekit
+make build          # ./bin/opskit
 make build-linux    # static linux/amd64 and linux/arm64
 ```
 
@@ -108,15 +108,15 @@ make build-linux    # static linux/amd64 and linux/arm64
 ### Diagnose
 
 ```bash
-srekit diag                           # everything it detects
-srekit diag --json                    # for a pipeline
-srekit diag -o incident.md            # Markdown incident report
+opskit diag                           # everything it detects
+opskit diag --json                    # for a pipeline
+opskit diag -o incident.md            # Markdown incident report
 
-srekit diag host                      # memory, CPU, disk, mounts, sockets, systemd, DNS, OOM kills
-srekit diag docker                    # exit codes, restart loops, healthchecks, disk footprint
-srekit diag swarm                     # nodes, replica convergence, task placement
-srekit diag k8s                       # all namespaces
-srekit diag k8s -n production         # one namespace
+opskit diag host                      # memory, CPU, disk, mounts, sockets, systemd, DNS, OOM kills
+opskit diag docker                    # exit codes, restart loops, healthchecks, disk footprint
+opskit diag swarm                     # nodes, replica convergence, task placement
+opskit diag k8s                       # all namespaces
+opskit diag k8s -n production         # one namespace
 ```
 
 ### Global flags
@@ -134,23 +134,23 @@ behind.
 ### Audit
 
 ```bash
-srekit audit sec                      # host, container, and cluster posture
-srekit audit certs                    # certificates on local disk
-srekit audit certs example.com:443    # a remote endpoint
+opskit audit sec                      # host, container, and cluster posture
+opskit audit certs                    # certificates on local disk
+opskit audit certs example.com:443    # a remote endpoint
 ```
 
 ### Fix things
 
-`--dry-run` is on by default, so `srekit fix` on its own only shows you what it
+`--dry-run` is on by default, so `opskit fix` on its own only shows you what it
 would do. Each command is graded first: `LOW` is additive, `MEDIUM` restarts or
 reconfigures something, `HIGH` deletes data or stops a service.
 
 ```bash
-srekit fix                            # preview, with risk grades
-srekit fix --dry-run=false            # apply, after one confirmation
-srekit fix --dry-run=false --max-risk medium   # nothing that deletes or stops
-srekit fix --only HOST-DSK-001 --dry-run=false # just this one
-srekit fix docker -y                  # no prompt, for cron or CI
+opskit fix                            # preview, with risk grades
+opskit fix --dry-run=false            # apply, after one confirmation
+opskit fix --dry-run=false --max-risk medium   # nothing that deletes or stops
+opskit fix --only HOST-DSK-001 --dry-run=false # just this one
+opskit fix docker -y                  # no prompt, for cron or CI
 ```
 
 It refuses to apply anything when stdin isn't a terminal unless you pass `-y`,
@@ -160,8 +160,8 @@ fails.
 ### Gate a pipeline
 
 ```bash
-srekit verify --fail-on critical
-srekit verify --fail-on warning -n production
+opskit verify --fail-on critical
+opskit verify --fail-on warning -n production
 ```
 
 | Exit | |
@@ -176,26 +176,26 @@ An unrecognised `--fail-on` value is rejected rather than quietly treated as
 ### Export metrics
 
 ```bash
-srekit export-metrics --port 9876 --interval 30s
+opskit export-metrics --port 9876 --interval 30s
 ```
 
 | Series | Type | |
 |---|---|---|
-| `srekit_up` | gauge | `1` once an evaluation has completed, `0` while starting |
-| `srekit_findings_total{target,severity}` | gauge | Counts per target and severity |
-| `srekit_severity_count{severity}` | gauge | Flat totals, cheaper to alert on |
-| `srekit_finding_active{id,severity,target,resource,namespace}` | gauge | One series per open finding, so an alert can name the rule |
-| `srekit_health_score` | gauge | `100 - 30×critical - 10×warning`, floored at 0 |
-| `srekit_last_evaluation_timestamp_seconds` | gauge | When the last run finished |
-| `srekit_evaluation_errors_total` | counter | Runs that failed |
+| `opskit_up` | gauge | `1` once an evaluation has completed, `0` while starting |
+| `opskit_findings_total{target,severity}` | gauge | Counts per target and severity |
+| `opskit_severity_count{severity}` | gauge | Flat totals, cheaper to alert on |
+| `opskit_finding_active{id,severity,target,resource,namespace}` | gauge | One series per open finding, so an alert can name the rule |
+| `opskit_health_score` | gauge | `100 - 30×critical - 10×warning`, floored at 0 |
+| `opskit_last_evaluation_timestamp_seconds` | gauge | When the last run finished |
+| `opskit_evaluation_errors_total` | counter | Runs that failed |
 
 `/healthz` is a plain liveness probe. `PASS` findings are deliberately left out
-of `srekit_finding_active` to keep cardinality down.
+of `opskit_finding_active` to keep cardinality down.
 
 ### Watch continuously
 
 ```bash
-srekit daemon --interval 60s --alert-on critical   --webhook-url "https://hooks.slack.com/services/XXX"
+opskit daemon --interval 60s --alert-on critical   --webhook-url "https://hooks.slack.com/services/XXX"
 ```
 
 A finding stays suppressed for 30 minutes after it alerts, so a persistent fault
@@ -204,10 +204,10 @@ doesn't page you every cycle.
 ### Network checks
 
 ```bash
-srekit net                            # DNS benchmark, TCP latency, path MTU
-srekit net 10.0.0.1
-srekit net dns example.com
-srekit net mtu 10.0.0.1
+opskit net                            # DNS benchmark, TCP latency, path MTU
+opskit net 10.0.0.1
+opskit net dns example.com
+opskit net mtu 10.0.0.1
 ```
 
 MTU probing sends a small ping first. Most cloud endpoints drop ICMP entirely,
@@ -216,7 +216,7 @@ and without that baseline every one of them looks like a broken VXLAN overlay.
 ### Terminal dashboard
 
 ```bash
-srekit tui
+opskit tui
 ```
 
 Findings on the left, detail on the right. `↑`/`↓` to move, `r` to rescan, `e`
@@ -226,7 +226,7 @@ out. A fix is never one keystroke away.
 ### Explain a finding
 
 ```bash
-srekit explain K8S-POD-002
+opskit explain K8S-POD-002
 ```
 
 Writes an incident runbook. Uses a local Ollama if one is reachable
@@ -236,12 +236,12 @@ Passwords, tokens, and private keys are stripped before anything is sent.
 ### Shell completion
 
 ```bash
-srekit completion install             # zsh, bash, or fish
+opskit completion install             # zsh, bash, or fish
 ```
 
 ### Your own rules
 
-Drop YAML into `rules.d/` or `~/.srekit/rules.d/`. No rebuild. One file can hold
+Drop YAML into `rules.d/` or `~/.opskit/rules.d/`. No rebuild. One file can hold
 several rules separated by `---`.
 
 ```yaml
@@ -298,14 +298,14 @@ Everything under `deploy/` is ready to apply.
 
 | | |
 |---|---|
-| [`deploy/helm/srekit`](deploy/helm/srekit) | Helm v3 chart, with a Prometheus Operator `ServiceMonitor` |
+| [`deploy/helm/opskit`](deploy/helm/opskit) | Helm v3 chart, with a Prometheus Operator `ServiceMonitor` |
 | [`deploy/kubernetes/daemonset.yaml`](deploy/kubernetes/daemonset.yaml) | Plain DaemonSet running the exporter on every node, with RBAC |
 | [`deploy/docker-swarm/docker-compose.yml`](deploy/docker-swarm/docker-compose.yml) | Global Swarm service |
-| [`deploy/systemd/srekit.service`](deploy/systemd/srekit.service) | Runs `srekit daemon` on a plain VM |
-| [`deploy/grafana/srekit-dashboard.json`](deploy/grafana/srekit-dashboard.json) | Health score and finding breakdown |
-| [`action.yml`](action.yml) | GitHub Action wrapping `srekit verify` |
+| [`deploy/systemd/opskit.service`](deploy/systemd/opskit.service) | Runs `opskit daemon` on a plain VM |
+| [`deploy/grafana/opskit-dashboard.json`](deploy/grafana/opskit-dashboard.json) | Health score and finding breakdown |
+| [`action.yml`](action.yml) | GitHub Action wrapping `opskit verify` |
 
-The container deployments set `SREKIT_PROC_ROOT=/host/proc` and bind-mount the
+The container deployments set `OPSKIT_PROC_ROOT=/host/proc` and bind-mount the
 node's procfs. Without that the host checks would measure the container instead
 of the machine, which is not what you want from a node agent.
 
@@ -316,7 +316,7 @@ at the top of the screen rather than page three.
 
 ```text
 ================================================================================
-               SRE TOOLKIT (SREKIT) DIAGNOSTIC & HEALTH REPORT
+               OPS TOOLKIT (OPSKIT) DIAGNOSTIC & HEALTH REPORT
 ================================================================================
 Host OS:      Ubuntu 22.04 LTS (5.15.0-89-generic, amd64)
 Deployments:  Host/Systemd, Docker, Kubernetes
@@ -387,7 +387,7 @@ than quietly finding nothing.
 ## Working on it
 
 ```bash
-make build          # ./bin/srekit
+make build          # ./bin/opskit
 make build-linux    # static binaries for linux/amd64 and linux/arm64
 make test
 make licenses       # refresh THIRD_PARTY_LICENSES.md after a dependency change

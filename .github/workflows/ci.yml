@@ -81,8 +81,8 @@ jobs:
 
       - name: Confirm the binaries are statically linked
         run: |
-          file bin/srekit-linux-amd64 bin/srekit-linux-arm64
-          file bin/srekit-linux-amd64 | grep -q "statically linked"
+          file bin/opskit-linux-amd64 bin/opskit-linux-arm64
+          file bin/opskit-linux-amd64 | grep -q "statically linked"
 
   vulncheck:
     name: Vulnerability scan

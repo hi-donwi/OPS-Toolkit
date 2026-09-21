@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/ai"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/ai"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +19,8 @@ comprehensive, human-readable Incident Runbooks and Root-Cause Analyses (RCA)
 for any detected diagnostic finding.
 
 Example:
-  srekit explain HOST-DSK-001
-  srekit explain K8S-POD-001`,
+  opskit explain HOST-DSK-001
+  opskit explain K8S-POD-001`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := CommandContext()
 		defer cancel()

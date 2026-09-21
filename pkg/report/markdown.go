@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // GenerateMarkdown creates an executive SRE diagnostic postmortem report in GitHub-flavored Markdown.

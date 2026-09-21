@@ -3,7 +3,7 @@ package analyzer
 import (
 	"strings"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 var standardCatalog = map[string]model.Finding{

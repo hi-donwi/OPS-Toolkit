@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/remediation"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/report"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/remediation"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/report"
 	"github.com/spf13/cobra"
 )
 
@@ -41,10 +41,10 @@ Use --max-risk to refuse anything above a chosen grade, and --only to run the
 fixes for specific finding IDs.
 
 Examples:
-  srekit fix                                  # preview every proposed fix
-  srekit fix --dry-run=false --max-risk medium
-  srekit fix --only HOST-DSK-001 --dry-run=false
-  srekit fix docker -y`,
+  opskit fix                                  # preview every proposed fix
+  opskit fix --dry-run=false --max-risk medium
+  opskit fix --only HOST-DSK-001 --dry-run=false
+  opskit fix docker -y`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		maxRisk, err := parseRisk(fixMaxRisk)
 		if err != nil {
@@ -80,7 +80,7 @@ Examples:
 		if fixDryRun && !fixAutoApprove {
 			c := report.Colors(NoColor)
 			fmt.Printf("\n%s\n", c.Wrap(c.Yellow, "DRY-RUN: nothing was executed."))
-			fmt.Println("To apply these fixes: srekit fix --dry-run=false   (or add -y to skip the prompt)")
+			fmt.Println("To apply these fixes: opskit fix --dry-run=false   (or add -y to skip the prompt)")
 			return nil
 		}
 

@@ -9,9 +9,9 @@ import (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print srekit version information",
+	Short: "Print opskit version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("srekit version %s (commit: %s, built: %s, runtime: %s/%s)\n",
+		fmt.Printf("opskit version %s (commit: %s, built: %s, runtime: %s/%s)\n",
 			Version, GitCommit, BuildDate, runtime.GOOS, runtime.GOARCH)
 	},
 }
