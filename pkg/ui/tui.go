@@ -7,11 +7,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/ai"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/remediation"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/ai"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/remediation"
 )
 
 // Styling tokens using Lipgloss
@@ -266,7 +266,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// Title Bar
-	b.WriteString(titleStyle.Render(" srekit — SRE Toolkit Operations Dashboard ") + "\n")
+	b.WriteString(titleStyle.Render(" opskit — OPS Toolkit Operations Dashboard ") + "\n")
 
 	if m.report == nil {
 		if m.loading {

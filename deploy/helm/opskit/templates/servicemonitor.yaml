@@ -2,16 +2,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "srekit.fullname" . }}
+  name: {{ include "opskit.fullname" . }}
   labels:
-    {{- include "srekit.labels" . | nindent 4 }}
+    {{- include "opskit.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "srekit.selectorLabels" . | nindent 6 }}
+      {{- include "opskit.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       interval: {{ .Values.serviceMonitor.interval }}

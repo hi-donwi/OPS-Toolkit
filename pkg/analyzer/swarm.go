@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // swarmService is one row of `docker service ls`.
@@ -126,8 +126,8 @@ func (e *Engine) evaluateSwarm(ctx context.Context) []model.Finding {
 			Symptom:    "This node is a Swarm worker node. Cluster-wide service and node state queries require a manager node.",
 			RootCause:  "Worker nodes execute container tasks but do not participate in the Swarm Raft consensus store or manage cluster-wide service definitions.",
 			RemedySteps: []string{
-				"Run 'srekit diag swarm' from a Swarm manager node to inspect cluster services and task placements",
-				"Run 'srekit diag docker' on this worker node to inspect its local running containers and health probes",
+				"Run 'opskit diag swarm' from a Swarm manager node to inspect cluster services and task placements",
+				"Run 'opskit diag docker' on this worker node to inspect its local running containers and health probes",
 			},
 		}}
 	}

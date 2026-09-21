@@ -1,6 +1,6 @@
 # Third-party licences
 
-`srekit` ships as a statically linked binary, so these dependencies are compiled
+`opskit` ships as a statically linked binary, so these dependencies are compiled
 into the artefact you download. Their terms travel with it, and their notices are
 reproduced below to satisfy the attribution each one requires.
 

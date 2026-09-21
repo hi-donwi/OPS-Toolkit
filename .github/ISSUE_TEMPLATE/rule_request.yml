@@ -1,5 +1,5 @@
 name: New rule
-description: Suggest a check srectl should perform
+description: Suggest a check opskit should perform
 labels: [enhancement, rule]
 body:
   - type: markdown

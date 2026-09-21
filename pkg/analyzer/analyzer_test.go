@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/sysexec"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/sysexec"
 )
 
 // newFixtureProc builds a minimal procfs tree so host rules can run without
@@ -180,7 +180,7 @@ func TestDNSRuleReportsFailure(t *testing.T) {
 func TestDNSProbeDomainIsOverridable(t *testing.T) {
 	// An air-gapped host must be able to point the probe at a name it can
 	// actually resolve, instead of reporting a false CRITICAL every run.
-	t.Setenv("SREKIT_DNS_PROBE", "internal.corp.example")
+	t.Setenv("OPSKIT_DNS_PROBE", "internal.corp.example")
 
 	if got := dnsProbeDomain(); got != "internal.corp.example" {
 		t.Errorf("dnsProbeDomain() = %q, want the override", got)
@@ -266,14 +266,14 @@ func TestProcRootFromEnv(t *testing.T) {
 
 	// Inside a container "/proc" describes the container, not the node. The
 	// DaemonSet bind-mounts the host's procfs and points the engine at it.
-	t.Setenv("SRECTL_PROC_ROOT", "/host/proc")
+	t.Setenv("OPSKIT_PROC_ROOT", "/host/proc")
 	if got := ProcRootFromEnv(); got != "/host/proc" {
 		t.Errorf("ProcRootFromEnv() = %q, want the override", got)
 	}
 }
 
 func TestNewEngineHonoursProcRootEnv(t *testing.T) {
-	t.Setenv("SRECTL_PROC_ROOT", "/host/proc")
+	t.Setenv("OPSKIT_PROC_ROOT", "/host/proc")
 
 	e := NewEngine(model.EnvironmentContext{})
 	if e.procRoot != "/host/proc" {

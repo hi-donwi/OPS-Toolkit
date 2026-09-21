@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 func TestGenerateMarkdown(t *testing.T) {
@@ -94,7 +94,7 @@ func TestPrintConsoleNumbersOnlyPrintedFindings(t *testing.T) {
 }
 
 func TestPrintConsoleShowsRuleID(t *testing.T) {
-	// The rule ID is what an operator passes to `srekit explain` and `--only`.
+	// The rule ID is what an operator passes to `opskit explain` and `--only`.
 	rep := &model.Report{
 		Timestamp: time.Now(),
 		Summary:   model.Summary{Critical: 1},

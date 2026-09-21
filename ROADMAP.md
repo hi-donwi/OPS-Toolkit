@@ -54,7 +54,7 @@ What has been built, roughly in the order it was built.
       so the root-reserved block pool is not counted as free headroom.
 - [x] Inode exhaustion detector (>80% Warning, >90% Critical).
 - [x] Systemd failed unit discovery with per-unit journal guidance.
-- [x] Upstream DNS resolution latency benchmark, with an `SREKIT_DNS_PROBE` override for
+- [x] Upstream DNS resolution latency benchmark, with an `OPSKIT_DNS_PROBE` override for
       air-gapped and split-horizon estates.
 - [x] `/proc/loadavg` saturation analysis scaled by CPU core count (`HOST-CPU-001`).
 - [x] `/proc/meminfo` memory and swap pressure, measured against `MemAvailable` (`HOST-MEM-002/003`).
@@ -66,16 +66,16 @@ What has been built, roughly in the order it was built.
 ---
 
 ## 6. Operations, remediation, telemetry
-- [x] Automated and interactive remediation engine (`srekit fix`) with safe `--dry-run` default.
-- [x] CI/CD verification quality gate (`srekit verify`) with configurable failure threshold (`--fail-on`).
-- [x] Native Prometheus metrics HTTP exporter (`srekit export-metrics`).
-- [x] Background continuous daemon watcher with webhook alerting (`srekit daemon`).
-- [x] Interactive live cluster/host dashboard powered by `charmbracelet/bubbletea` (`srekit tui`).
-- [x] AI Incident Copilot runbook generator with sensitive data masking (`srekit explain`).
+- [x] Automated and interactive remediation engine (`opskit fix`) with safe `--dry-run` default.
+- [x] CI/CD verification quality gate (`opskit verify`) with configurable failure threshold (`--fail-on`).
+- [x] Native Prometheus metrics HTTP exporter (`opskit export-metrics`).
+- [x] Background continuous daemon watcher with webhook alerting (`opskit daemon`).
+- [x] Interactive live cluster/host dashboard powered by `charmbracelet/bubbletea` (`opskit tui`).
+- [x] AI Incident Copilot runbook generator with sensitive data masking (`opskit explain`).
 - [x] Custom YAML-based rule engine (`rules.d/*.yaml`).
 - [x] Production packaging manifests (Kubernetes DaemonSet, Docker Swarm, Systemd, install.sh).
-- [x] Network connectivity, DNS benchmark, and Path MTU drop inspector (`srekit net`).
-- [x] Automated shell autocompletion installer (`srekit completion install`).
+- [x] Network connectivity, DNS benchmark, and Path MTU drop inspector (`opskit net`).
+- [x] Automated shell autocompletion installer (`opskit completion install`).
 
 ---
 
@@ -93,7 +93,7 @@ What has been built, roughly in the order it was built.
       reachability probe now gates the verdict.
 - [x] `verify --fail-on` silently fell back to `critical` on an unrecognised value.
 - [x] `fix <target>` silently fell back to scanning everything on an unrecognised target.
-- [x] `srekit net` reported a hardcoded `240ms` duration instead of the measured one.
+- [x] `opskit net` reported a hardcoded `240ms` duration instead of the measured one.
 - [x] Console findings were numbered by their index in the full list, so the visible list
       skipped numbers wherever a `PASS` row was hidden.
 - [x] The daemon's alert-suppression map grew without bound for the process lifetime.
@@ -105,7 +105,7 @@ What has been built, roughly in the order it was built.
 **Safety and robustness**
 - [x] Every external command runs under a deadline through `pkg/sysexec`; a global `--timeout`
       and `SIGINT`/`SIGTERM` cancel a run instead of hanging on an unreachable API server.
-- [x] `srekit fix` grades each command `LOW`/`MEDIUM`/`HIGH`, supports `--max-risk` and
+- [x] `opskit fix` grades each command `LOW`/`MEDIUM`/`HIGH`, supports `--max-risk` and
       `--only`, refuses to apply anything from a non-terminal stdin without `-y`, and exits
       non-zero when a fix fails.
 - [x] The TUI stages a quick-fix for `[y]` confirmation rather than executing on one keystroke.

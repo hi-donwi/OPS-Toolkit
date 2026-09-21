@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/analyzer"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/detector"
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/analyzer"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/detector"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // MetricsServer serves Prometheus metrics over HTTP.
@@ -115,11 +115,11 @@ func (s *MetricsServer) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 
 	if rep == nil {
-		// Emit srekit_up even with no data, so a dashboard can distinguish
+		// Emit opskit_up even with no data, so a dashboard can distinguish
 		// "collector is starting" from "collector is gone".
-		fmt.Fprint(w, "# HELP srekit_up Whether the last diagnostic evaluation succeeded\n")
-		fmt.Fprint(w, "# TYPE srekit_up gauge\n")
-		fmt.Fprint(w, "srekit_up 0\n")
+		fmt.Fprint(w, "# HELP opskit_up Whether the last diagnostic evaluation succeeded\n")
+		fmt.Fprint(w, "# TYPE opskit_up gauge\n")
+		fmt.Fprint(w, "opskit_up 0\n")
 		return
 	}
 
@@ -128,25 +128,25 @@ func (s *MetricsServer) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 
 // writeMetrics renders the Prometheus exposition format for a report.
 func writeMetrics(w io.Writer, rep *model.Report, scrapeErrors int, evaluated time.Time) {
-	fmt.Fprint(w, "# HELP srekit_up Whether the last diagnostic evaluation succeeded\n")
-	fmt.Fprint(w, "# TYPE srekit_up gauge\n")
-	fmt.Fprint(w, "srekit_up 1\n\n")
+	fmt.Fprint(w, "# HELP opskit_up Whether the last diagnostic evaluation succeeded\n")
+	fmt.Fprint(w, "# TYPE opskit_up gauge\n")
+	fmt.Fprint(w, "opskit_up 1\n\n")
 
 	writeFindingsTotal(w, rep)
 	writeSeveritySummary(w, rep)
 	writeActiveFindings(w, rep)
 
-	fmt.Fprint(w, "# HELP srekit_health_score Overall infrastructure health score (0-100)\n")
-	fmt.Fprint(w, "# TYPE srekit_health_score gauge\n")
-	fmt.Fprintf(w, "srekit_health_score %d\n\n", HealthScore(rep.Summary))
+	fmt.Fprint(w, "# HELP opskit_health_score Overall infrastructure health score (0-100)\n")
+	fmt.Fprint(w, "# TYPE opskit_health_score gauge\n")
+	fmt.Fprintf(w, "opskit_health_score %d\n\n", HealthScore(rep.Summary))
 
-	fmt.Fprint(w, "# HELP srekit_last_evaluation_timestamp_seconds Epoch timestamp of the last diagnostic run\n")
-	fmt.Fprint(w, "# TYPE srekit_last_evaluation_timestamp_seconds gauge\n")
-	fmt.Fprintf(w, "srekit_last_evaluation_timestamp_seconds %d\n\n", evaluated.Unix())
+	fmt.Fprint(w, "# HELP opskit_last_evaluation_timestamp_seconds Epoch timestamp of the last diagnostic run\n")
+	fmt.Fprint(w, "# TYPE opskit_last_evaluation_timestamp_seconds gauge\n")
+	fmt.Fprintf(w, "opskit_last_evaluation_timestamp_seconds %d\n\n", evaluated.Unix())
 
-	fmt.Fprint(w, "# HELP srekit_evaluation_errors_total Diagnostic evaluations that failed to complete\n")
-	fmt.Fprint(w, "# TYPE srekit_evaluation_errors_total counter\n")
-	fmt.Fprintf(w, "srekit_evaluation_errors_total %d\n", scrapeErrors)
+	fmt.Fprint(w, "# HELP opskit_evaluation_errors_total Diagnostic evaluations that failed to complete\n")
+	fmt.Fprint(w, "# TYPE opskit_evaluation_errors_total counter\n")
+	fmt.Fprintf(w, "opskit_evaluation_errors_total %d\n", scrapeErrors)
 }
 
 // writeFindingsTotal emits finding counts partitioned by target and severity.
@@ -171,10 +171,10 @@ func writeFindingsTotal(w io.Writer, rep *model.Report) {
 		return keys[i].severity < keys[j].severity
 	})
 
-	fmt.Fprint(w, "# HELP srekit_findings_total Diagnostic findings partitioned by target and severity\n")
-	fmt.Fprint(w, "# TYPE srekit_findings_total gauge\n")
+	fmt.Fprint(w, "# HELP opskit_findings_total Diagnostic findings partitioned by target and severity\n")
+	fmt.Fprint(w, "# TYPE opskit_findings_total gauge\n")
 	for _, k := range keys {
-		fmt.Fprintf(w, "srekit_findings_total{target=%q,severity=%q} %d\n",
+		fmt.Fprintf(w, "opskit_findings_total{target=%q,severity=%q} %d\n",
 			escapeLabel(k.target), escapeLabel(k.severity), counts[k])
 	}
 	fmt.Fprint(w, "\n")
@@ -183,20 +183,20 @@ func writeFindingsTotal(w io.Writer, rep *model.Report) {
 // writeSeveritySummary emits flat per-severity gauges, which are cheaper to
 // alert on than summing a partitioned series.
 func writeSeveritySummary(w io.Writer, rep *model.Report) {
-	fmt.Fprint(w, "# HELP srekit_severity_count Findings at each severity across all targets\n")
-	fmt.Fprint(w, "# TYPE srekit_severity_count gauge\n")
-	fmt.Fprintf(w, "srekit_severity_count{severity=\"CRITICAL\"} %d\n", rep.Summary.Critical)
-	fmt.Fprintf(w, "srekit_severity_count{severity=\"WARNING\"} %d\n", rep.Summary.Warning)
-	fmt.Fprintf(w, "srekit_severity_count{severity=\"INFO\"} %d\n", rep.Summary.Info)
-	fmt.Fprintf(w, "srekit_severity_count{severity=\"PASS\"} %d\n\n", rep.Summary.Pass)
+	fmt.Fprint(w, "# HELP opskit_severity_count Findings at each severity across all targets\n")
+	fmt.Fprint(w, "# TYPE opskit_severity_count gauge\n")
+	fmt.Fprintf(w, "opskit_severity_count{severity=\"CRITICAL\"} %d\n", rep.Summary.Critical)
+	fmt.Fprintf(w, "opskit_severity_count{severity=\"WARNING\"} %d\n", rep.Summary.Warning)
+	fmt.Fprintf(w, "opskit_severity_count{severity=\"INFO\"} %d\n", rep.Summary.Info)
+	fmt.Fprintf(w, "opskit_severity_count{severity=\"PASS\"} %d\n\n", rep.Summary.Pass)
 }
 
 // writeActiveFindings emits one series per actionable finding, so an alert can
 // name the failing rule and resource instead of only a count. PASS findings are
 // omitted: they would multiply cardinality for no alerting value.
 func writeActiveFindings(w io.Writer, rep *model.Report) {
-	fmt.Fprint(w, "# HELP srekit_finding_active An actionable finding currently detected\n")
-	fmt.Fprint(w, "# TYPE srekit_finding_active gauge\n")
+	fmt.Fprint(w, "# HELP opskit_finding_active An actionable finding currently detected\n")
+	fmt.Fprint(w, "# TYPE opskit_finding_active gauge\n")
 
 	seen := make(map[string]bool)
 	for _, f := range rep.Findings {
@@ -204,7 +204,7 @@ func writeActiveFindings(w io.Writer, rep *model.Report) {
 			continue
 		}
 
-		line := fmt.Sprintf("srekit_finding_active{id=%q,severity=%q,target=%q,resource=%q,namespace=%q}",
+		line := fmt.Sprintf("opskit_finding_active{id=%q,severity=%q,target=%q,resource=%q,namespace=%q}",
 			escapeLabel(f.ID), escapeLabel(string(f.Severity)), escapeLabel(string(f.TargetType)),
 			escapeLabel(f.Resource), escapeLabel(f.Namespace))
 

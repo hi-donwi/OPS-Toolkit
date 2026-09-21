@@ -18,7 +18,7 @@ import sys
 # Platforms we publish binaries for.
 TARGETS = [("linux", "amd64"), ("linux", "arm64"), ("darwin", "amd64"), ("darwin", "arm64")]
 
-SELF = "github.com/hi-donwi/SRE-Toolkit"
+SELF = "github.com/hi-donwi/OPS-Toolkit"
 THIRD_PARTY_PREFIXES = ("github.com/", "gopkg.in/", "golang.org/x/")
 
 
@@ -135,7 +135,7 @@ def main():
 
     document = f"""# Third-party licences
 
-`srekit` ships as a statically linked binary, so these dependencies are compiled
+`opskit` ships as a statically linked binary, so these dependencies are compiled
 into the artefact you download. Their terms travel with it, and their notices are
 reproduced below to satisfy the attribution each one requires.
 

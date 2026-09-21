@@ -15,15 +15,15 @@ var completionCmd = &cobra.Command{
 	Long: `To load completions:
 
 Bash:
-  $ source <(srekit completion bash)
+  $ source <(opskit completion bash)
 
 Zsh:
-  $ source <(srekit completion zsh)
+  $ source <(opskit completion zsh)
 
 Fish:
-  $ srekit completion fish | source
+  $ opskit completion fish | source
 
-Or use 'srekit completion install' to configure autocompletion permanently.`,
+Or use 'opskit completion install' to configure autocompletion permanently.`,
 	DisableFlagsInUseLine: true,
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 	Args:                  cobra.ExactValidArgs(1),
@@ -87,12 +87,12 @@ func detectShell() string {
 
 func installZsh(home string) error {
 	zshrc := filepath.Join(home, ".zshrc")
-	hook := "\n# srekit shell autocompletion\neval \"$(srekit completion zsh)\"\n"
+	hook := "\n# opskit shell autocompletion\neval \"$(opskit completion zsh)\"\n"
 
 	// Check if already installed
 	if content, err := os.ReadFile(zshrc); err == nil {
-		if strings.Contains(string(content), "srekit completion zsh") {
-			fmt.Printf("[OK] srekit autocompletion is already configured in %s\n", zshrc)
+		if strings.Contains(string(content), "opskit completion zsh") {
+			fmt.Printf("[OK] opskit autocompletion is already configured in %s\n", zshrc)
 			return nil
 		}
 	}
@@ -115,11 +115,11 @@ func installZsh(home string) error {
 
 func installBash(home string) error {
 	bashrc := filepath.Join(home, ".bashrc")
-	hook := "\n# srekit shell autocompletion\nsource <(srekit completion bash)\n"
+	hook := "\n# opskit shell autocompletion\nsource <(opskit completion bash)\n"
 
 	if content, err := os.ReadFile(bashrc); err == nil {
-		if strings.Contains(string(content), "srekit completion bash") {
-			fmt.Printf("[OK] srekit autocompletion is already configured in %s\n", bashrc)
+		if strings.Contains(string(content), "opskit completion bash") {
+			fmt.Printf("[OK] opskit autocompletion is already configured in %s\n", bashrc)
 			return nil
 		}
 	}
@@ -146,7 +146,7 @@ func installFish(home string) error {
 		return fmt.Errorf("failed to create directory %s: %w", fishDir, err)
 	}
 
-	fishFile := filepath.Join(fishDir, "srekit.fish")
+	fishFile := filepath.Join(fishDir, "opskit.fish")
 	f, err := os.Create(fishFile)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", fishFile, err)

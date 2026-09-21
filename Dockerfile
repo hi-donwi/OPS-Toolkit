@@ -24,10 +24,10 @@ ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath \
       -ldflags="-s -w \
-        -X 'github.com/hi-donwi/SRE-Toolkit/cmd.Version=${VERSION}' \
-        -X 'github.com/hi-donwi/SRE-Toolkit/cmd.GitCommit=${COMMIT}' \
-        -X 'github.com/hi-donwi/SRE-Toolkit/cmd.BuildDate=${BUILD_DATE}'" \
-      -o /srekit .
+        -X 'github.com/hi-donwi/OPS-Toolkit/cmd.Version=${VERSION}' \
+        -X 'github.com/hi-donwi/OPS-Toolkit/cmd.GitCommit=${COMMIT}' \
+        -X 'github.com/hi-donwi/OPS-Toolkit/cmd.BuildDate=${BUILD_DATE}'" \
+      -o /opskit .
 
 # ---- Stage 2: runtime ------------------------------------------------------
 FROM alpine:3.20
@@ -35,10 +35,10 @@ FROM alpine:3.20
 # ca-certificates is required for the TLS certificate audit and webhook
 # delivery; tzdata keeps report timestamps correct outside UTC.
 RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -g 65532 -S srekit \
-    && adduser -u 65532 -S -G srekit srekit
+    && addgroup -g 65532 -S opskit \
+    && adduser -u 65532 -S -G opskit opskit
 
-COPY --from=builder /srekit /usr/local/bin/srekit
+COPY --from=builder /opskit /usr/local/bin/opskit
 
 # The exporter needs no privileges of its own. Deployments that additionally
 # diagnose the host or the container runtime grant that access explicitly
@@ -48,7 +48,7 @@ USER 65532:65532
 EXPOSE 9876
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["/usr/local/bin/srekit", "version"]
+  CMD ["/usr/local/bin/opskit", "version"]
 
-ENTRYPOINT ["/usr/local/bin/srekit"]
+ENTRYPOINT ["/usr/local/bin/opskit"]
 CMD ["export-metrics", "--port", "9876", "--interval", "30s"]

@@ -1,6 +1,6 @@
 # Security
 
-## What srekit touches
+## What opskit touches
 
 Worth knowing before you run it on a production host, and before you decide what
 to grant it.
@@ -9,7 +9,7 @@ to grant it.
 `/etc/resolv.conf`, `/etc/ssh/sshd_config`, permission bits on `/etc/shadow`,
 `/etc/passwd`, `/etc/sudoers` and similar, certificate files under
 `/etc/ssl/certs`, `/etc/letsencrypt/live` and `/etc/pki/tls/certs`, and the rule
-files in `rules.d/` and `~/.srekit/rules.d/`.
+files in `rules.d/` and `~/.opskit/rules.d/`.
 
 **It executes.** `dmesg`, `systemctl --failed`, `docker`, `kubectl`, and `ping`,
 using whatever is on your `PATH`. Arguments are fixed by the rule that issues
@@ -19,8 +19,8 @@ Every invocation carries a timeout.
 **It connects.** TCP to `127.0.0.1` on a small set of ports (2375, 6379, 27017,
 2379, 11211) to see whether an unauthenticated service is listening, and to any
 port a custom rule names in `port_listening`. TLS to whatever endpoint you pass
-to `srekit audit certs`. `srekit daemon` posts to the webhook URL you configure.
-`srekit explain` contacts a local Ollama when one is running (`OLLAMA_HOST`,
+to `opskit audit certs`. `opskit daemon` posts to the webhook URL you configure.
+`opskit explain` contacts a local Ollama when one is running (`OLLAMA_HOST`,
 default `http://localhost:11434`) and falls back to offline templates when it is
 not. Docker detection talks to `/var/run/docker.sock` over a unix socket.
 
@@ -29,15 +29,15 @@ run it somewhere restricted:
 
 | What | When | Change it with |
 |---|---|---|
-| Resolves `google.com` | Every `diag` run, to time DNS | `SREKIT_DNS_PROBE` |
-| Queries `1.1.1.1:53` and `8.8.8.8:53` directly | `srekit net`, to compare your resolvers against known-good ones | not configurable today |
-| Pings and TCP-connects `1.1.1.1` | `srekit net` with no target given | pass a target: `srekit net <host>` |
+| Resolves `google.com` | Every `diag` run, to time DNS | `OPSKIT_DNS_PROBE` |
+| Queries `1.1.1.1:53` and `8.8.8.8:53` directly | `opskit net`, to compare your resolvers against known-good ones | not configurable today |
+| Pings and TCP-connects `1.1.1.1` | `opskit net` with no target given | pass a target: `opskit net <host>` |
 
 None of this reports anything about you — it is reachability and latency
 measurement, and the payloads are a DNS question and an ICMP echo. But it is
 outbound traffic to Cloudflare and Google, and in an air-gapped or
-egress-filtered environment you should set `SREKIT_DNS_PROBE` and always name
-your own target for `srekit net`.
+egress-filtered environment you should set `OPSKIT_DNS_PROBE` and always name
+your own target for `opskit net`.
 
 **It does not** send telemetry, report usage, or transmit anything to the author
 or to any service beyond what is listed above.
@@ -45,15 +45,15 @@ or to any service beyond what is listed above.
 ## What it writes
 
 Nothing, unless you ask. `-o` writes a report where you point it.
-`srekit fix` executes remediation commands, and that is the one path that
+`opskit fix` executes remediation commands, and that is the one path that
 changes your system — see below.
 
-## `srekit fix`
+## `opskit fix`
 
 `--dry-run` is the default. Nothing runs until you pass `--dry-run=false` or
 `-y`.
 
-Commands come from srekit's own rule set and from rule files you wrote, and are
+Commands come from opskit's own rule set and from rule files you wrote, and are
 executed through `sh -c` because several of them use shell operators. Each is
 graded first — `LOW`, `MEDIUM`, or `HIGH` — and `--max-risk` refuses anything
 above a grade you choose. The grading is a heuristic over the command text: it
@@ -71,16 +71,16 @@ that. Do not load rule files from a source you would not trust with a shell.
 
 Most host checks need root or `CAP_SYSLOG` to be useful — `dmesg` is commonly
 restricted by `kernel.dmesg_restrict`, and permission checks on `/etc/shadow`
-need to stat it. srekit degrades rather than failing: a check it cannot perform
+need to stat it. opskit degrades rather than failing: a check it cannot perform
 is skipped, not reported as a pass.
 
 The container images run as UID 65532. The Kubernetes and Swarm manifests mount
-the host's `/proc` read-only and set `SREKIT_PROC_ROOT`, and grant nothing else.
+the host's `/proc` read-only and set `OPSKIT_PROC_ROOT`, and grant nothing else.
 Give it more only if you want the checks that need more.
 
 ## Secret handling
 
-`srekit explain` may send a finding's log evidence to a local LLM. That text is
+`opskit explain` may send a finding's log evidence to a local LLM. That text is
 scrubbed first: bearer tokens, `password`/`secret`/`token`/`api_key`
 assignments, AWS access key IDs, and PEM private key blocks are replaced with
 placeholders. The scrubber is pattern-based and is a safety net, not a

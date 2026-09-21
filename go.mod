@@ -1,4 +1,4 @@
-module github.com/hi-donwi/SRE-Toolkit
+module github.com/hi-donwi/OPS-Toolkit
 
 go 1.26.0
 

@@ -1,6 +1,6 @@
-# Engineering notes: `srekit` (SRE Toolkit)
+# Engineering notes: `opskit` (OPS Toolkit)
 
-> Module: `github.com/hi-donwi/SRE-Toolkit`
+> Module: `github.com/hi-donwi/OPS-Toolkit`
 > Last reconciled with the code: 2026-09-01
 
 These are the design notes — what the tool is for, what it's built on, and why
@@ -22,7 +22,7 @@ Working that out means running a lot of commands — `dmesg`, `journalctl -u`,
 head while you correlate them. That's fine when you do it often. It's error-prone
 at 3am, and it's slow for whoever is on call and hasn't seen this system before.
 
-`srekit` runs those checks and reports what it found. Five things shape the design:
+`opskit` runs those checks and reports what it found. Five things shape the design:
 
 1. **One static binary, no runtime.** No Python, no Node, no libc assumptions.
    You can copy it onto a host that's already unhappy and run it.
@@ -49,7 +49,7 @@ at 3am, and it's slow for whoever is on call and hasn't seen this system before.
 | **Docker & Swarm Access** | The operator's own `docker` CLI, plus a raw HTTP probe of `/var/run/docker.sock` for detection | See below. |
 | **OS & Kernel Telemetry** | `procfs`, `syscall.Statfs`, `dmesg`, `systemctl` | Direct kernel probing for memory, load, mounts, socket tables, and process state. |
 | **Custom Rules** | `gopkg.in/yaml.v3` | User-authored rules loaded from `rules.d/` at runtime, with no rebuild. |
-| **Terminal UI** | `charmbracelet/bubbletea` + `lipgloss` | Full-screen interactive dashboard (`srekit tui`). |
+| **Terminal UI** | `charmbracelet/bubbletea` + `lipgloss` | Full-screen interactive dashboard (`opskit tui`). |
 | **Reporting** | Native ANSI, `encoding/json`, hand-rolled Markdown | Severity-coloured console output, machine-readable JSON, and Markdown incident reports. |
 
 ### 2.1. Why no client-go and no Docker SDK
@@ -62,7 +62,7 @@ Both were considered and deliberately rejected.
   access.
 - **Version skew.** A vendored client-go is pinned to the API versions it was
   built against. Shelling out to whatever `kubectl` the operator already has
-  means srekit inherits a client that is, by definition, compatible with the
+  means opskit inherits a client that is, by definition, compatible with the
   cluster the operator is already administering.
 - **Credentials.** Delegating to `kubectl` inherits the full kubeconfig stack —
   exec credential plugins, cloud IAM helpers, contexts, proxies — without
@@ -72,9 +72,9 @@ The cost is that cluster state arrives as text. That cost is contained by
 decoding `kubectl get <kind> -o json` into narrow typed structs rather than
 parsing jsonpath templates or scraping table output. See §8.1.
 
-`viper` is not used: srekit has no configuration file. Behaviour comes from
-flags, a small number of environment overrides (`SREKIT_PROC_ROOT`,
-`SREKIT_DNS_PROBE`, `OLLAMA_HOST`, `SRE_AI_MODEL`), and `rules.d/*.yaml`.
+`viper` is not used: opskit has no configuration file. Behaviour comes from
+flags, a small number of environment overrides (`OPSKIT_PROC_ROOT`,
+`OPSKIT_DNS_PROBE`, `OLLAMA_HOST`, `SRE_AI_MODEL`), and `rules.d/*.yaml`.
 
 ---
 
@@ -82,7 +82,7 @@ flags, a small number of environment overrides (`SREKIT_PROC_ROOT`,
 
 ```
                                   ┌────────────────────────┐
-                                  │   srekit CLI Engine    │
+                                  │   opskit CLI Engine    │
                                   └───────────┬────────────┘
                                               │
                     ┌─────────────────────────┼─────────────────────────┐
@@ -108,17 +108,17 @@ flags, a small number of environment overrides (`SREKIT_PROC_ROOT`,
 - **Kernel Compatibility**: Linux Kernel 3.10+ (full support for both cgroups v1 and cgroups v2).
 
 ### 3.2. Automated Environment Detection
-When a user runs `srekit diag`, the CLI dynamically inspects the local runtime:
+When a user runs `opskit diag`, the CLI dynamically inspects the local runtime:
 - Verifies `KUBECONFIG`, `~/.kube/config`, or `/var/run/secrets/kubernetes.io/serviceaccount` → Activates **Kubernetes Mode**.
 - Checks `/var/run/docker.sock` and queries `/info` for `LocalNodeState == "active"` → Activates **Docker Swarm Mode** or **Docker Standalone Mode**.
 - Inspects `/etc/os-release`, `/run/systemd/system`, and kernel procfs → Activates **Linux Host / VM Mode**.
-- Dedicated subcommands allow targeted diagnostic runs: `srekit diag k8s`, `srekit diag swarm`, `srekit diag docker`, `srekit diag host`.
+- Dedicated subcommands allow targeted diagnostic runs: `opskit diag k8s`, `opskit diag swarm`, `opskit diag docker`, `opskit diag host`.
 
 ---
 
 ## 4. What it diagnoses
 
-### 4.1. Linux Host / VM Diagnostics (`srekit diag host`)
+### 4.1. Linux Host / VM Diagnostics (`opskit diag host`)
 Essential SRE incident diagnostics for degraded or unresponsive virtual machines and bare-metal nodes:
 
 1. **Systemd Services & Unit Failures**:
@@ -141,7 +141,7 @@ Essential SRE incident diagnostics for degraded or unresponsive virtual machines
 
 ---
 
-### 4.2. Docker Standalone & Compose Diagnostics (`srekit diag docker`)
+### 4.2. Docker Standalone & Compose Diagnostics (`opskit diag docker`)
 1. **Container Crash Triage & Exit Code Forensic Analysis**:
    - Identifies non-zero exited containers and categorizes their failure modes:
      - `Exit Code 137`: SIGKILL, predominantly **OOMKilled** by Docker cgroup limits or kernel OOM killer.
@@ -159,7 +159,7 @@ Essential SRE incident diagnostics for degraded or unresponsive virtual machines
 
 ---
 
-### 4.3. Docker Swarm Deep Inspection (`srekit diag swarm`)
+### 4.3. Docker Swarm Deep Inspection (`opskit diag swarm`)
 Specialized SRE features tailored for Docker Swarm multi-node orchestration:
 
 1. **Swarm Cluster & Quorum Health**:
@@ -184,7 +184,7 @@ Specialized SRE features tailored for Docker Swarm multi-node orchestration:
 
 ---
 
-### 4.4. Kubernetes Comprehensive Diagnostics (`srekit diag k8s`)
+### 4.4. Kubernetes Comprehensive Diagnostics (`opskit diag k8s`)
 Complete SRE health and topology analysis across Pods, Services, Ingress, DNS, Storage, and Nodes:
 
 1. **Pod & Workload Health**:
@@ -214,7 +214,7 @@ Complete SRE health and topology analysis across Pods, Services, Ingress, DNS, S
 
 ## 5. Security auditing
 
-Subcommand **`srekit audit sec`** implements security checks mapped to **CIS Benchmarks**, **NSA/CISA Kubernetes Hardening Guidance**, and **Docker Security Best Practices**.
+Subcommand **`opskit audit sec`** implements security checks mapped to **CIS Benchmarks**, **NSA/CISA Kubernetes Hardening Guidance**, and **Docker Security Best Practices**.
 
 ### 5.1. Linux Host Security (CIS Benchmark Alignment)
 - **SSH Configuration**:
@@ -267,7 +267,7 @@ as a count rather than listed, so the incident is the first thing on screen.
 
 ```text
 ================================================================================
-               SRE TOOLKIT (SREKIT) DIAGNOSTIC & HEALTH REPORT
+               OPS TOOLKIT (OPSKIT) DIAGNOSTIC & HEALTH REPORT
 ================================================================================
 Host OS:      Ubuntu 22.04 LTS (5.15.0-89-generic, amd64)
 Deployments:  Host/Systemd, Docker, Kubernetes
@@ -311,8 +311,8 @@ Summary:      2 CRITICAL, 1 WARNING, 18 PASS
 ================================================================================
 ```
 
-The `Rule ID` row is what an operator passes to `srekit explain <id>` for a full
-runbook, and to `srekit fix --only <id>` to apply just that finding's fix.
+The `Rule ID` row is what an operator passes to `opskit explain <id>` for a full
+runbook, and to `opskit fix --only <id>` to apply just that finding's fix.
 
 The same report is available as JSON (`--json`) and as a Markdown incident
 document (`-o report.md`); both carry the full finding set including `PASS`.
@@ -323,47 +323,47 @@ document (`-o report.md`); both carry the full finding set including `PASS`.
 
 ```bash
 # Automated diagnostics (auto-detects the active environment)
-srekit diag                          # Every detected subsystem
-srekit diag --json                   # Machine-readable output for CI/CD
-srekit diag --output report.md       # Markdown incident document
+opskit diag                          # Every detected subsystem
+opskit diag --json                   # Machine-readable output for CI/CD
+opskit diag --output report.md       # Markdown incident document
 
 # Targeted diagnostics
-srekit diag host                     # Memory, CPU load, disk, inodes, mounts, sockets, systemd, DNS, OOM killer
-srekit diag docker                   # Container exit codes, restart loops, healthchecks, storage footprint
-srekit diag swarm                    # Nodes, service convergence, task placement forensics
-srekit diag k8s                      # Pods, services, ingress, PVCs, nodes, CoreDNS
-srekit diag k8s -n production        # Restrict to one namespace (default: all)
+opskit diag host                     # Memory, CPU load, disk, inodes, mounts, sockets, systemd, DNS, OOM killer
+opskit diag docker                   # Container exit codes, restart loops, healthchecks, storage footprint
+opskit diag swarm                    # Nodes, service convergence, task placement forensics
+opskit diag k8s                      # Pods, services, ingress, PVCs, nodes, CoreDNS
+opskit diag k8s -n production        # Restrict to one namespace (default: all)
 
 # Security audits
-srekit audit sec                     # Host, Docker, and Kubernetes posture
-srekit audit certs                   # Local certificate paths
-srekit audit certs example.com:443   # A specific remote TLS endpoint
+opskit audit sec                     # Host, Docker, and Kubernetes posture
+opskit audit certs                   # Local certificate paths
+opskit audit certs example.com:443   # A specific remote TLS endpoint
 
 # Remediation — --dry-run is the default
-srekit fix                           # Preview each fix with its LOW/MEDIUM/HIGH risk grade
-srekit fix --dry-run=false           # Apply, with one interactive confirmation
-srekit fix --max-risk medium         # Refuse anything that deletes data or stops a service
-srekit fix --only HOST-DSK-001       # Apply one specific finding's fix
-srekit fix docker -y                 # Non-interactive (CI, cron)
+opskit fix                           # Preview each fix with its LOW/MEDIUM/HIGH risk grade
+opskit fix --dry-run=false           # Apply, with one interactive confirmation
+opskit fix --max-risk medium         # Refuse anything that deletes data or stops a service
+opskit fix --only HOST-DSK-001       # Apply one specific finding's fix
+opskit fix docker -y                 # Non-interactive (CI, cron)
 
 # CI/CD quality gate — exit 0 pass, 1 threshold breached, 2 run failed
-srekit verify --fail-on critical
-srekit verify --fail-on warning -n production
+opskit verify --fail-on critical
+opskit verify --fail-on warning -n production
 
 # Telemetry and continuous operation
-srekit export-metrics --port 9876 --interval 30s
-srekit daemon --interval 60s --alert-on critical --webhook-url "https://hooks.slack.com/..."
+opskit export-metrics --port 9876 --interval 30s
+opskit daemon --interval 60s --alert-on critical --webhook-url "https://hooks.slack.com/..."
 
 # Investigation
-srekit explain K8S-POD-002           # Incident runbook (local Ollama, or built-in heuristics)
-srekit net 1.1.1.1                   # DNS benchmark, TCP latency, Path MTU
-srekit net dns example.com
-srekit net mtu 10.0.0.1
-srekit tui                           # Interactive terminal dashboard
+opskit explain K8S-POD-002           # Incident runbook (local Ollama, or built-in heuristics)
+opskit net 1.1.1.1                   # DNS benchmark, TCP latency, Path MTU
+opskit net dns example.com
+opskit net mtu 10.0.0.1
+opskit tui                           # Interactive terminal dashboard
 
 # Setup
-srekit completion install            # zsh, bash, or fish
-srekit version
+opskit completion install            # zsh, bash, or fish
+opskit version
 ```
 
 ### 7.1. Global flags
@@ -383,16 +383,16 @@ child processes behind.
 
 | Variable | Purpose |
 |---|---|
-| `SREKIT_PROC_ROOT` | Where to read procfs from. Set to `/host/proc` in the container deployments, because a container's own `/proc` describes the container rather than the node. |
-| `SREKIT_DNS_PROBE` | The name `HOST-DNS-001` resolves. Point this at a resolvable internal name on air-gapped or split-horizon estates, otherwise every run reports a false `CRITICAL`. |
-| `OLLAMA_HOST`, `SRE_AI_MODEL` | Local LLM endpoint and model for `srekit explain`. Falls back to built-in heuristics when unreachable. |
+| `OPSKIT_PROC_ROOT` | Where to read procfs from. Set to `/host/proc` in the container deployments, because a container's own `/proc` describes the container rather than the node. |
+| `OPSKIT_DNS_PROBE` | The name `HOST-DNS-001` resolves. Point this at a resolvable internal name on air-gapped or split-horizon estates, otherwise every run reports a false `CRITICAL`. |
+| `OLLAMA_HOST`, `SRE_AI_MODEL` | Local LLM endpoint and model for `opskit explain`. Falls back to built-in heuristics when unreachable. |
 
 ---
 
 ## 8. Code layout
 
 ```text
-srekit/
+opskit/
 ├── main.go                       # Entrypoint; delegates to cmd.Execute()
 ├── cmd/                          # Cobra command layer — flag parsing and output only
 │   ├── root.go                   # Global flags, CommandContext() (timeout + signal cancellation)
@@ -428,11 +428,11 @@ srekit/
 │   ├── exporter/                 # Prometheus /metrics HTTP server
 │   ├── daemon/                   # Continuous watcher with webhook alerting
 │   └── ui/                       # Bubbletea TUI
-├── rules.d/                      # Custom YAML rules (also read from ~/.srekit/rules.d)
+├── rules.d/                      # Custom YAML rules (also read from ~/.opskit/rules.d)
 ├── deploy/                       # Helm chart, K8s DaemonSet, Swarm stack, systemd unit, Grafana dashboard
 ├── .github/workflows/            # CI (fmt, vet, tidy, -race, cross-compile, govulncheck) and release
 ├── Dockerfile                    # Multi-stage static build; runs as UID 65532
-├── action.yml                    # Reusable GitHub Action wrapping 'srekit verify'
+├── action.yml                    # Reusable GitHub Action wrapping 'opskit verify'
 ├── install.sh                    # One-line installer
 ├── Makefile                      # build, build-linux, test, clean
 ├── LICENSE                       # Apache 2.0

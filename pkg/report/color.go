@@ -2,7 +2,7 @@ package report
 
 import "os"
 
-// Palette holds the ANSI codes used across srekit's output. Every code lives
+// Palette holds the ANSI codes used across opskit's output. Every code lives
 // here rather than being written inline, so `--no-color` is honoured by
 // construction instead of by remembering to check a flag at each call site.
 type Palette struct {

@@ -43,9 +43,9 @@ func CommandContext() (context.Context, context.CancelFunc) {
 
 // RootCmd represents the base command when called without any subcommands.
 var RootCmd = &cobra.Command{
-	Use:   "srekit",
-	Short: "srekit — SRE Toolkit: Site Reliability Engineering Control & Diagnostics",
-	Long: `srekit (SRE Toolkit) is an all-in-one SRE diagnostic and triage CLI tool designed for
+	Use:   "opskit",
+	Short: "opskit — OPS Toolkit: Site Reliability Engineering Control & Diagnostics",
+	Long: `opskit (OPS Toolkit) is an all-in-one SRE diagnostic and triage CLI tool designed for
 Linux hosts, Docker standalone, Docker Swarm, and Kubernetes deployments.
 
 It automatically inspects infrastructure health, identifies crashes (OOM, segfaults,

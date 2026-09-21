@@ -1,18 +1,18 @@
 GO ?= $(shell which go 2>/dev/null || echo /opt/homebrew/bin/go)
-BINARY_NAME = srekit
+BINARY_NAME = opskit
 BUILD_DIR = bin
 VERSION = 0.1.0
 COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-LDFLAGS = -s -w -X 'github.com/hi-donwi/SRE-Toolkit/cmd.Version=$(VERSION)' -X 'github.com/hi-donwi/SRE-Toolkit/cmd.GitCommit=$(COMMIT)' -X 'github.com/hi-donwi/SRE-Toolkit/cmd.BuildDate=$(DATE)'
+LDFLAGS = -s -w -X 'github.com/hi-donwi/OPS-Toolkit/cmd.Version=$(VERSION)' -X 'github.com/hi-donwi/OPS-Toolkit/cmd.GitCommit=$(COMMIT)' -X 'github.com/hi-donwi/OPS-Toolkit/cmd.BuildDate=$(DATE)'
 
 .PHONY: all build test clean build-linux run help licenses licenses-check
 
 all: build
 
 help:
-	@echo "srekit build commands:"
+	@echo "opskit build commands:"
 	@echo "  make build         - Build local binary for current OS/ARCH"
 	@echo "  make build-linux   - Cross-compile for Linux (amd64 & arm64)"
 	@echo "  make test          - Run unit tests"

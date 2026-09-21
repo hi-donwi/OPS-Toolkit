@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 #
-# srekit installer.
+# opskit installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/hi-donwi/SRE-Toolkit/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/hi-donwi/OPS-Toolkit/main/install.sh | bash
 #
 # Environment overrides:
-#   SREKIT_VERSION   release tag to install, or "latest" (default)
+#   OPSKIT_VERSION   release tag to install, or "latest" (default)
 #   INSTALL_DIR      destination directory (default: /usr/local/bin)
-#   SREKIT_SKIP_CHECKSUM=1   skip checksum verification (not recommended)
+#   OPSKIT_SKIP_CHECKSUM=1   skip checksum verification (not recommended)
 
 # -u catches unset variables; -o pipefail stops a failed download from being
 # masked by a later successful pipe stage.
 set -euo pipefail
 
-REPO="hi-donwi/SRE-Toolkit"
-BINARY_NAME="srekit"
+REPO="hi-donwi/OPS-Toolkit"
+BINARY_NAME="opskit"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-VERSION="${SREKIT_VERSION:-${SRECTL_VERSION:-latest}}"
+VERSION="${OPSKIT_VERSION:-latest}"
 
 die() { echo "Error: $*" >&2; exit 1; }
 info() { echo "$*"; }
 
 echo "================================================="
-echo "        srekit — SRE Toolkit Installer           "
+echo "        opskit — OPS Toolkit Installer           "
 echo "================================================="
 
 # ---------------------------------------------------------------------------
@@ -52,20 +52,20 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # 2. Obtain the binary
 #
 # A locally built binary is only used when the caller did not ask for a specific
-# release. Preferring ./bin over an explicit SREKIT_VERSION would silently
+# release. Preferring ./bin over an explicit OPSKIT_VERSION would silently
 # install something other than what was requested.
 # ---------------------------------------------------------------------------
 verify_checksum() {
   local file="$1" tag="$2" name="$3"
 
-  if [ "${SREKIT_SKIP_CHECKSUM:-${SRECTL_SKIP_CHECKSUM:-0}}" = "1" ]; then
-    info "Skipping checksum verification (SREKIT_SKIP_CHECKSUM=1)."
+  if [ "${OPSKIT_SKIP_CHECKSUM:-0}" = "1" ]; then
+    info "Skipping checksum verification (OPSKIT_SKIP_CHECKSUM=1)."
     return 0
   fi
 
   local sums="${TMP_DIR}/checksums.txt"
   if ! curl -fsSL "https://github.com/${REPO}/releases/download/${tag}/checksums.txt" -o "$sums"; then
-    die "could not download checksums.txt for ${tag}. Refusing to install an unverified binary. Set SREKIT_SKIP_CHECKSUM=1 to override."
+    die "could not download checksums.txt for ${tag}. Refusing to install an unverified binary. Set OPSKIT_SKIP_CHECKSUM=1 to override."
   fi
 
   local expected
@@ -115,7 +115,7 @@ else
       # Quietly substituting a source build would install something other than
       # what the caller asked for.
       if [ "$VERSION" != "latest" ]; then
-        die "release ${RELEASE_TAG} has no ${TARGET_NAME} asset. Check the tag, or unset SREKIT_VERSION to build from source."
+        die "release ${RELEASE_TAG} has no ${TARGET_NAME} asset. Check the tag, or unset OPSKIT_VERSION to build from source."
       fi
     fi
   fi
@@ -151,4 +151,4 @@ info ""
 info "Installed ${BINARY_NAME} to ${DEST}"
 "$DEST" version || true
 info ""
-info "Next: 'srekit diag' to run diagnostics, or 'srekit --help' for all commands."
+info "Next: 'opskit diag' to run diagnostics, or 'opskit --help' for all commands."

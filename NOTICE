@@ -1,12 +1,12 @@
-srekit — SRE Toolkit
+opskit — OPS Toolkit
 Copyright 2026 Doni Wicaksono
 
 This product includes software developed by Doni Wicaksono
-(https://github.com/hi-donwi/SRE-Toolkit).
+(https://github.com/hi-donwi/OPS-Toolkit).
 
 Licensed under the Apache License, Version 2.0. A copy is in the LICENSE file,
 or at http://www.apache.org/licenses/LICENSE-2.0.
 
-srekit is distributed as a statically linked binary that embeds third-party
+opskit is distributed as a statically linked binary that embeds third-party
 open-source components. Their copyright notices and licence texts are in
 THIRD_PARTY_LICENSES.md, which travels with this NOTICE.

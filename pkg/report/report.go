@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hi-donwi/SRE-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 )
 
 // PrintConsole prints the diagnostic report to stdout with clean SRE formatting.
@@ -21,7 +21,7 @@ func PrintConsoleDetailed(w io.Writer, rep *model.Report, noColor bool, showPass
 	red, green, yellow, cyan, gray := c.Red, c.Green, c.Yellow, c.Cyan, c.Gray
 
 	fmt.Fprintf(w, "\n%s================================================================================%s\n", bold, reset)
-	fmt.Fprintf(w, "%s                SRE TOOLKIT (SREKIT) DIAGNOSTIC & HEALTH REPORT%s\n", bold+cyan, reset)
+	fmt.Fprintf(w, "%s                OPS TOOLKIT (OPSKIT) DIAGNOSTIC & HEALTH REPORT%s\n", bold+cyan, reset)
 	fmt.Fprintf(w, "%s================================================================================%s\n", bold, reset)
 
 	fmt.Fprintf(w, "%sHost OS:%s      %s (%s, %s)\n", bold, reset, rep.Environment.Distro, rep.Environment.Kernel, rep.Environment.Arch)
