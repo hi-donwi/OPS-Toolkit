@@ -156,6 +156,8 @@ func (e *Engine) RunDiagnostics(ctx context.Context, targetFilter model.TargetTy
 
 	sortFindings(report.Findings)
 	report.Summary = Summarize(report.Findings)
+	report.ChecksExecuted = report.Summary.Critical + report.Summary.Warning +
+		report.Summary.Info + report.Summary.Pass
 	report.Duration = e.now().Sub(start).Round(time.Millisecond).String()
 
 	return report, nil

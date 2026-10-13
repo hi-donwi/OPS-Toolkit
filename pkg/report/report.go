@@ -26,7 +26,12 @@ func PrintConsoleDetailed(w io.Writer, rep *model.Report, noColor bool, showPass
 
 	fmt.Fprintf(w, "%sHost OS:%s      %s (%s, %s)\n", bold, reset, rep.Environment.Distro, rep.Environment.Kernel, rep.Environment.Arch)
 
-	deployments := []string{"Host/Systemd"}
+	var deployments []string
+	if rep.Environment.HasSystemd {
+		deployments = append(deployments, "Host/Systemd")
+	} else {
+		deployments = append(deployments, "Host")
+	}
 	if rep.Environment.HasDocker {
 		deployments = append(deployments, "Docker")
 	}
@@ -58,7 +63,12 @@ func PrintConsoleDetailed(w io.Writer, rep *model.Report, noColor bool, showPass
 	fmt.Fprintf(w, "%s--------------------------------------------------------------------------------%s\n\n", gray, reset)
 
 	if len(rep.Findings) == 0 {
-		fmt.Fprintf(w, "%s[OK] All diagnostic checks completed. No anomalies found.%s\n\n", green, reset)
+		if rep.ChecksExecuted == 0 {
+			fmt.Fprintf(w, "%s[!!] 0 checks executed — no diagnostics were applicable to this environment.%s\n", bold+yellow, reset)
+			fmt.Fprintf(w, "%s     Possible causes: unsupported OS, missing runtime (Docker/Kubernetes), or restricted permissions.%s\n\n", yellow, reset)
+		} else {
+			fmt.Fprintf(w, "%s[OK] All %d diagnostic checks passed. No anomalies found.%s\n\n", green, rep.ChecksExecuted, reset)
+		}
 		return
 	}
 

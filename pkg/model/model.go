@@ -65,10 +65,11 @@ type Summary struct {
 
 // Report holds the complete diagnostic evaluation result.
 type Report struct {
-	Title       string             `json:"title"`
-	Timestamp   time.Time          `json:"timestamp"`
-	Duration    string             `json:"duration"`
-	Environment EnvironmentContext `json:"environment"`
-	Summary     Summary            `json:"summary"`
-	Findings    []Finding          `json:"findings"`
+	Title          string             `json:"title"`
+	Timestamp      time.Time          `json:"timestamp"`
+	Duration       string             `json:"duration"`
+	Environment    EnvironmentContext `json:"environment"`
+	ChecksExecuted int                `json:"checks_executed"`
+	Summary        Summary            `json:"summary"`
+	Findings       []Finding          `json:"findings"`
 }

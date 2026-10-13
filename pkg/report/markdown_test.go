@@ -198,3 +198,83 @@ func TestGenerateMarkdownOmitsPassDetail(t *testing.T) {
 		t.Error("an all-clear report should say so explicitly")
 	}
 }
+
+func TestPrintConsoleZeroChecksWarnsInsteadOfAllClear(t *testing.T) {
+	// When no checks executed (e.g. Docker subcommand on a host without
+	// Docker), the tool must NOT print a green all-clear.
+	rep := &model.Report{
+		Timestamp:      time.Now(),
+		Duration:       "2ms",
+		ChecksExecuted: 0,
+		Summary:        model.Summary{},
+		Findings:       nil,
+	}
+
+	var buf bytes.Buffer
+	PrintConsole(&buf, rep, true)
+	out := buf.String()
+
+	if strings.Contains(out, "[OK]") {
+		t.Error("zero checks must never show [OK]")
+	}
+	if !strings.Contains(out, "0 checks executed") {
+		t.Errorf("expected '0 checks executed' warning, got:\n%s", out)
+	}
+}
+
+func TestPrintConsoleAllPassedShowsCount(t *testing.T) {
+	// When checks ran but all passed, show the count in the all-clear.
+	rep := &model.Report{
+		Timestamp:      time.Now(),
+		Duration:       "5ms",
+		ChecksExecuted: 7,
+		Summary:        model.Summary{Pass: 7},
+		Findings: []model.Finding{
+			{ID: "P1", Severity: model.SeverityPass},
+			{ID: "P2", Severity: model.SeverityPass},
+			{ID: "P3", Severity: model.SeverityPass},
+			{ID: "P4", Severity: model.SeverityPass},
+			{ID: "P5", Severity: model.SeverityPass},
+			{ID: "P6", Severity: model.SeverityPass},
+			{ID: "P7", Severity: model.SeverityPass},
+		},
+	}
+
+	var buf bytes.Buffer
+	PrintConsole(&buf, rep, true)
+	out := buf.String()
+
+	if !strings.Contains(out, "[OK]") {
+		t.Error("all-passed should show [OK]")
+	}
+	if !strings.Contains(out, "7 checks passed") {
+		t.Errorf("expected count of passed checks, got:\n%s", out)
+	}
+}
+
+func TestPrintConsoleDeploymentLabelWithoutSystemd(t *testing.T) {
+	rep := &model.Report{
+		Timestamp: time.Now(),
+		Duration:  "3ms",
+		Environment: model.EnvironmentContext{
+			Distro:     "macOS 15.5",
+			Kernel:     "24.5.0",
+			Arch:       "arm64",
+			HasSystemd: false,
+			HasDocker:  false,
+		},
+		Summary:  model.Summary{},
+		Findings: nil,
+	}
+
+	var buf bytes.Buffer
+	PrintConsoleDetailed(&buf, rep, true, false)
+	out := buf.String()
+
+	if strings.Contains(out, "Systemd") {
+		t.Errorf("should not mention Systemd when HasSystemd is false:\n%s", out)
+	}
+	if !strings.Contains(out, "Host") {
+		t.Errorf("should mention Host:\n%s", out)
+	}
+}
