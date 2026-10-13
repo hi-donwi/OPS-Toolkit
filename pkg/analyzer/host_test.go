@@ -151,6 +151,31 @@ func TestEvaluateReadOnlyMountsPassesWhenAllWritable(t *testing.T) {
 	}
 }
 
+func TestEvaluateReadOnlyMountInfoIgnoresBindMountsAndContainerVolumes(t *testing.T) {
+	raw := `113 72 0:53 / / rw,relatime - overlay overlay rw
+118 113 0:65 / /sys ro,nosuid - sysfs sysfs ro
+122 113 0:46 /etc/hosts /test/file ro,nosuid,nodev,relatime - virtiofs virtiofs2 rw,ignore_atime
+123 113 8:1 /app/config.json /etc/config.json ro,relatime - ext4 /dev/sda1 rw,errors=remount-ro
+124 113 8:1 /var/lib/docker/overlay2/abc /run/container ro,relatime - ext4 /dev/sda1 rw
+125 50 8:17 / /data ro,relatime - ext4 /dev/sdb1 ro,errors=remount-ro
+`
+	entries := parseMountInfo(raw)
+	if len(entries) != 6 {
+		t.Fatalf("parsed %d entries, want 6", len(entries))
+	}
+
+	findings := evaluateReadOnlyMountInfo(entries)
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want exactly 1 (only the real /dev/sdb1 block device mount)", len(findings))
+	}
+	if findings[0].Severity != model.SeverityCritical {
+		t.Errorf("severity = %s, want CRITICAL", findings[0].Severity)
+	}
+	if !strings.Contains(findings[0].Resource, "/data") {
+		t.Errorf("resource = %s, want it to name /data", findings[0].Resource)
+	}
+}
+
 func TestParseProcState(t *testing.T) {
 	tests := []struct {
 		name string

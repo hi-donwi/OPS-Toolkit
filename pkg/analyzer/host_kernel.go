@@ -64,7 +64,136 @@ func parseMounts(content string) []mountEntry {
 	return entries
 }
 
+// mountInfoEntry is one line of /proc/self/mountinfo.
+type mountInfoEntry struct {
+	MountID      int
+	ParentID     int
+	MajorMinor   string
+	Root         string
+	MountPoint   string
+	MountOptions []string
+	FSType       string
+	Source       string
+	SuperOptions []string
+}
+
+func (m mountInfoEntry) ReadOnly() bool {
+	for _, o := range m.MountOptions {
+		if o == "ro" {
+			return true
+		}
+	}
+	for _, o := range m.SuperOptions {
+		if o == "ro" {
+			return true
+		}
+	}
+	return false
+}
+
+// parseMountInfo parses /proc/self/mountinfo.
+func parseMountInfo(content string) []mountInfoEntry {
+	entries := make([]mountInfoEntry, 0, 32)
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+		sepIdx := -1
+		for i, f := range fields {
+			if f == "-" {
+				sepIdx = i
+				break
+			}
+		}
+		if sepIdx < 6 || len(fields) < sepIdx+3 {
+			continue
+		}
+
+		mountID, _ := strconv.Atoi(fields[0])
+		parentID, _ := strconv.Atoi(fields[1])
+
+		entry := mountInfoEntry{
+			MountID:      mountID,
+			ParentID:     parentID,
+			MajorMinor:   fields[2],
+			Root:         fields[3],
+			MountPoint:   fields[4],
+			MountOptions: strings.Split(fields[5], ","),
+			FSType:       fields[sepIdx+1],
+			Source:       fields[sepIdx+2],
+		}
+		if len(fields) > sepIdx+3 {
+			entry.SuperOptions = strings.Split(fields[sepIdx+3], ",")
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func evaluateReadOnlyMountInfo(entries []mountInfoEntry) []model.Finding {
+	findings := make([]model.Finding, 0)
+
+	for _, m := range entries {
+		if !m.ReadOnly() || pseudoFilesystems[m.FSType] {
+			continue
+		}
+		// Sub-tree or single-file bind mounts (e.g. docker -v ./foo:/bar:ro) have Root != "/"
+		if m.Root != "/" {
+			continue
+		}
+		// A read-only bind of a container image layer or snap is by design.
+		if strings.HasPrefix(m.MountPoint, "/snap/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/docker/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/containerd/") {
+			continue
+		}
+		// Real data filesystems are backed by a block device.
+		if !strings.HasPrefix(m.Source, "/dev/") {
+			continue
+		}
+
+		findings = append(findings, model.Finding{
+			ID:         "HOST-ROF-001",
+			Title:      fmt.Sprintf("Filesystem Mounted Read-Only: %s", m.MountPoint),
+			TargetType: model.TargetHost,
+			Category:   "Storage Integrity",
+			Resource:   "filesystem:" + m.MountPoint,
+			Severity:   model.SeverityCritical,
+			Symptom:    fmt.Sprintf("%s (%s on %s) is mounted read-only. All writes to this path will fail.", m.MountPoint, m.FSType, m.Source),
+			RootCause:  "The kernel remounted the filesystem read-only after an I/O or journal error, or it was mounted ro deliberately. This is the classic signature of failing storage.",
+			RemedySteps: []string{
+				fmt.Sprintf("Check the kernel ring buffer for the triggering I/O error: dmesg -T | grep -i -E 'EXT4-fs|I/O error|%s'", m.Source),
+				fmt.Sprintf("Run a filesystem check on the unmounted device: fsck -y %s", m.Source),
+				"Inspect the underlying disk health with smartctl before remounting read-write",
+			},
+			Metadata: map[string]string{"device": m.Source, "fstype": m.FSType},
+		})
+	}
+
+	if len(findings) == 0 {
+		findings = append(findings, model.Finding{
+			ID:         "HOST-ROF-001",
+			Title:      "All Data Filesystems Writable",
+			TargetType: model.TargetHost,
+			Category:   "Storage Integrity",
+			Resource:   "filesystem:mounts",
+			Severity:   model.SeverityPass,
+			Symptom:    "No data filesystem has been remounted read-only.",
+		})
+	}
+
+	return findings
+}
+
 func (e *Engine) checkReadOnlyMounts() []model.Finding {
+	if content, err := e.readProc("self/mountinfo"); err == nil && len(strings.TrimSpace(content)) > 0 {
+		return evaluateReadOnlyMountInfo(parseMountInfo(content))
+	}
+	if content, err := e.readProc("mountinfo"); err == nil && len(strings.TrimSpace(content)) > 0 {
+		return evaluateReadOnlyMountInfo(parseMountInfo(content))
+	}
+
 	content, err := e.readProc("mounts")
 	if err != nil {
 		return nil
@@ -80,7 +209,13 @@ func evaluateReadOnlyMounts(mounts []mountEntry) []model.Finding {
 			continue
 		}
 		// A read-only bind of a container image layer is by design.
-		if strings.HasPrefix(m.MountPoint, "/snap/") || strings.HasPrefix(m.MountPoint, "/var/lib/docker/") {
+		if strings.HasPrefix(m.MountPoint, "/snap/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/docker/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/containerd/") {
+			continue
+		}
+		// Real data filesystems are backed by a block device.
+		if !strings.HasPrefix(m.Device, "/dev/") {
 			continue
 		}
 
