@@ -82,3 +82,13 @@ func TestSanitizeLogRedactsVariedCredentialForms(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizeConnectionErrors(t *testing.T) {
+	input := "mongodb://audit:synthetic-password@host password='alpha beta' bearer short-token"
+	got := SanitizeLog(input)
+	for _, secret := range []string{"synthetic-password", "alpha", "beta", "short-token"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("connection error leaked %s: %s", secret, got)
+		}
+	}
+}

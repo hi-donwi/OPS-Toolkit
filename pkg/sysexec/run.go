@@ -12,8 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
+
+	"github.com/hi-donwi/OPS-Toolkit/pkg/ai"
 )
 
 // DefaultTimeout bounds a single external command invocation.
@@ -42,7 +46,9 @@ func (Real) Run(ctx context.Context, timeout time.Duration, name string, args ..
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	name, args = applyTargetContext(name, args)
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = commandEnv(name)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -70,7 +76,7 @@ func (Real) Available(name string) bool {
 
 func trim(b []byte) string {
 	const max = 240
-	s := string(bytes.TrimSpace(b))
+	s := ai.SanitizeLog(string(bytes.TrimSpace(b)))
 	if len(s) > max {
 		return s[:max] + "…"
 	}
@@ -119,6 +125,47 @@ func (f *Fake) Run(_ context.Context, _ time.Duration, name string, args ...stri
 
 // Available reports true unless the binary was explicitly marked missing.
 func (f *Fake) Available(name string) bool { return !f.Missing[name] }
+
+func applyTargetContext(name string, args []string) (string, []string) {
+	switch name {
+	case "docker":
+		if ctx := strings.TrimSpace(os.Getenv("OPSKIT_DOCKER_CONTEXT")); ctx != "" && !hasFlag(args, "--context") {
+			return name, append([]string{"--context", ctx}, args...)
+		}
+	case "kubectl":
+		if ctx := strings.TrimSpace(os.Getenv("OPSKIT_KUBE_CONTEXT")); ctx != "" && !hasFlag(args, "--context") {
+			return name, append([]string{"--context", ctx}, args...)
+		}
+	}
+	return name, args
+}
+
+func hasFlag(args []string, flag string) bool {
+	for _, arg := range args {
+		if arg == flag || strings.HasPrefix(arg, flag+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+func commandEnv(name string) []string {
+	env := os.Environ()
+	switch name {
+	case "redis-cli":
+		if auth := os.Getenv("OPSKIT_REDIS_PASSWORD"); auth != "" {
+			filtered := make([]string, 0, len(env)+1)
+			for _, entry := range env {
+				if !strings.HasPrefix(entry, "REDISCLI_AUTH=") {
+					filtered = append(filtered, entry)
+				}
+			}
+			env = filtered
+			env = append(env, "REDISCLI_AUTH="+auth)
+		}
+	}
+	return env
+}
 
 func matchesPrefix(invocation, key string) bool {
 	if invocation == key {

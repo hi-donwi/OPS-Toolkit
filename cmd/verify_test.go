@@ -116,3 +116,15 @@ func TestParseTargetFilter(t *testing.T) {
 		}
 	}
 }
+
+func TestVerificationRejectsEmptyOrIncompleteCollection(t *testing.T) {
+	for _, rep := range []*model.Report{{}, {ChecksExecuted: 3, CollectionErrors: 1}} {
+		err, ok := verifyCoverage(rep).(*ExitError)
+		if !ok || err.Code != 2 {
+			t.Fatalf("incomplete verification must exit 2: %v", err)
+		}
+	}
+	if err := verifyCoverage(&model.Report{ChecksExecuted: 3}); err != nil {
+		t.Fatalf("complete verification rejected: %v", err)
+	}
+}

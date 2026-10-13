@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hi-donwi/OPS-Toolkit/pkg/ai"
 	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
 	"github.com/hi-donwi/OPS-Toolkit/pkg/sysexec"
 )
@@ -179,6 +180,11 @@ func (e *Engine) RunDiagnostics(ctx context.Context, targetFilter model.TargetTy
 	report.Summary = Summarize(report.Findings)
 	report.ChecksExecuted = report.Summary.Critical + report.Summary.Warning +
 		report.Summary.Info + report.Summary.Pass
+	for _, finding := range report.Findings {
+		if finding.Metadata["collection_error"] == "true" {
+			report.CollectionErrors++
+		}
+	}
 	report.Duration = e.now().Sub(start).Round(time.Millisecond).String()
 
 	return report, nil
@@ -286,4 +292,19 @@ func sortFindings(findings []model.Finding) {
 		}
 		return findings[i].ID < findings[j].ID
 	})
+}
+
+func collectionUnavailable(id string, target model.TargetType, resource string, err error) model.Finding {
+	return model.Finding{
+		ID:          id,
+		Title:       "Diagnostic Collection Incomplete",
+		TargetType:  target,
+		Category:    "Collection",
+		Resource:    resource,
+		Severity:    model.SeverityWarning,
+		Symptom:     "One or more required diagnostic commands failed.",
+		RootCause:   ai.SanitizeLog(err.Error()),
+		Metadata:    map[string]string{"collection_error": "true"},
+		RemedySteps: []string{"Verify the target context, credentials, and command availability, then rerun the diagnostic."},
+	}
 }

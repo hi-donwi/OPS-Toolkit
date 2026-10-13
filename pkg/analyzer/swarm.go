@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -112,6 +113,7 @@ func (e *Engine) evaluateSwarm(ctx context.Context) []model.Finding {
 	}
 
 	findings := make([]model.Finding, 0, 8)
+	var collectionErr error
 
 	svcOut, err := e.run.Run(ctx, 20*time.Second, "docker", "service", "ls",
 		"--format", "{{.ID}}\t{{.Name}}\t{{.Mode}}\t{{.Replicas}}\t{{.Image}}")
@@ -131,7 +133,9 @@ func (e *Engine) evaluateSwarm(ctx context.Context) []model.Finding {
 			},
 		}}
 	}
-	if err == nil {
+	if err != nil {
+		collectionErr = errors.Join(collectionErr, err)
+	} else {
 		for _, svc := range parseSwarmServices(string(svcOut)) {
 			running, desired, ok := svc.ReplicaCounts()
 			if !ok || desired == 0 || running >= desired {
@@ -147,11 +151,15 @@ func (e *Engine) evaluateSwarm(ctx context.Context) []model.Finding {
 
 	nodeOut, err := e.run.Run(ctx, 20*time.Second, "docker", "node", "ls",
 		"--format", "{{.ID}}\t{{.Hostname}}\t{{.Status}}\t{{.Availability}}\t{{.ManagerStatus}}")
-	if err == nil {
+	if err != nil {
+		collectionErr = errors.Join(collectionErr, err)
+	} else {
 		findings = append(findings, evaluateSwarmNodes(parseSwarmNodes(string(nodeOut)))...)
 	}
 
-	if len(findings) == 0 {
+	if collectionErr != nil {
+		findings = append(findings, collectionUnavailable("SWM-COL-001", model.TargetSwarm, "swarm:cluster", collectionErr))
+	} else if len(findings) == 0 {
 		findings = append(findings, model.Finding{
 			ID:         "SWM-ALL-001",
 			Title:      "Docker Swarm Cluster Converged",
