@@ -62,6 +62,43 @@ func TestAuditExposedPortsDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestParseProcNetListening(t *testing.T) {
+	// Sample /proc/net/tcp fixture with port 5432 (0x1538) on 0.0.0.0,
+	// port 9092 (0x2384) on 0.0.0.0, port 6379 (0x18EB) on 127.0.0.1 (0100007F),
+	// and port 8080 (0x1F90) in TIME_WAIT (06).
+	procNetTCP := `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000:1538 00000000:0000 0A 00000000:00000000 00:00000000 00000000   1000        0 12345 1 0000000000000000 100 0 0 10 0
+   1: 00000000:2384 00000000:0000 0A 00000000:00000000 00:00000000 00000000   1000        0 12346 1 0000000000000000 100 0 0 10 0
+   2: 0100007F:18EB 00000000:0000 0A 00000000:00000000 00:00000000 00000000   1000        0 12347 1 0000000000000000 100 0 0 10 0
+   3: 00000000:1F90 00000000:0000 06 00000000:00000000 00:00000000 00000000   1000        0 12348 1 0000000000000000 100 0 0 10 0
+`
+
+	tests := []struct {
+		name        string
+		port        int
+		wantExposed bool
+		wantBind    string
+	}{
+		{"PostgreSQL 5432 exposed on all interfaces", 5432, true, "0.0.0.0 (all interfaces)"},
+		{"Kafka 9092 exposed on all interfaces", 9092, true, "0.0.0.0 (all interfaces)"},
+		{"Redis 6379 safe on loopback", 6379, false, ""},
+		{"Non-listening state (TIME_WAIT)", 8080, false, ""},
+		{"Unopened port 2375", 2375, false, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			exposed, bind := parseProcNetListening(strings.NewReader(procNetTCP), tc.port)
+			if exposed != tc.wantExposed {
+				t.Errorf("port %d exposed = %v, want %v", tc.port, exposed, tc.wantExposed)
+			}
+			if bind != tc.wantBind {
+				t.Errorf("port %d bind = %q, want %q", tc.port, bind, tc.wantBind)
+			}
+		})
+	}
+}
+
 func TestAuditSSHConfigIsPlatformGuarded(t *testing.T) {
 	// The parser reads a Linux path; on other platforms it must return cleanly
 	// rather than reporting a missing file as a finding.
