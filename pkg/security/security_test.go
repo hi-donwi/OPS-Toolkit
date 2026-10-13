@@ -126,3 +126,20 @@ func TestExpiryFindingWordsExpiryInThePast(t *testing.T) {
 		t.Errorf("symptom = %q, want it to say how long ago it expired", f.Symptom)
 	}
 }
+
+func TestExpiryFindingCACertificateSeverity(t *testing.T) {
+	caCert := &x509.Certificate{
+		NotAfter: time.Now().Add(-30 * 24 * time.Hour),
+		Subject:  pkix.Name{CommonName: "Legacy Root CA"},
+		Issuer:   pkix.Name{CommonName: "Legacy Root CA"},
+		IsCA:     true,
+	}
+
+	f := expiryFinding("file:/etc/ssl/certs/legacy.pem", "legacy.pem", caCert, localRemedy)
+	if f.Severity != model.SeverityWarning {
+		t.Errorf("expired CA certificate severity = %s, want WARNING", f.Severity)
+	}
+	if !strings.Contains(f.Title, "Trust Store Root/CA Expired") {
+		t.Errorf("title = %q, want it to mention Trust Store Root/CA Expired", f.Title)
+	}
+}

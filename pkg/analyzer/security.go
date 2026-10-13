@@ -53,11 +53,11 @@ type sensitiveFile struct {
 }
 
 var sensitiveFiles = []sensitiveFile{
-	{Path: "/etc/shadow", ForbiddenBits: 0o077, Expected: "0640 or stricter"},
-	{Path: "/etc/gshadow", ForbiddenBits: 0o077, Expected: "0640 or stricter"},
+	{Path: "/etc/shadow", ForbiddenBits: 0o037, Expected: "0640 or stricter"},
+	{Path: "/etc/gshadow", ForbiddenBits: 0o037, Expected: "0640 or stricter"},
 	{Path: "/etc/passwd", ForbiddenBits: 0o022, Expected: "0644"},
 	{Path: "/etc/group", ForbiddenBits: 0o022, Expected: "0644"},
-	{Path: "/etc/sudoers", ForbiddenBits: 0o077, Expected: "0440"},
+	{Path: "/etc/sudoers", ForbiddenBits: 0o037, Expected: "0440"},
 	{Path: "/etc/ssh/sshd_config", ForbiddenBits: 0o077, Expected: "0600"},
 }
 
@@ -74,46 +74,48 @@ func (e *Engine) checkSensitiveFilePermissions() []model.Finding {
 			continue // not every distro ships every file
 		}
 
-		mode := info.Mode().Perm()
-		offending := mode & sf.ForbiddenBits
-		if offending == 0 {
-			findings = append(findings, model.Finding{
-				ID:         "SEC-FIL-001",
-				Title:      fmt.Sprintf("File Permissions Secure: %s", sf.Path),
-				TargetType: model.TargetSecurity,
-				Category:   "File Permissions",
-				Resource:   "file:" + sf.Path,
-				Severity:   model.SeverityPass,
-				Symptom:    fmt.Sprintf("%s has safe permissions (%04o).", sf.Path, mode),
-			})
-			continue
-		}
-
-		// World-writable is materially worse than merely over-readable: it lets
-		// an unprivileged user rewrite the file rather than only read it.
-		severity := model.SeverityWarning
-		if offending&0o002 != 0 {
-			severity = model.SeverityCritical
-		} else if sf.Path == "/etc/shadow" || sf.Path == "/etc/gshadow" {
-			severity = model.SeverityCritical
-		}
-
-		findings = append(findings, model.Finding{
-			ID:          "SEC-FIL-001",
-			Title:       fmt.Sprintf("Insecure File Permissions: %s", sf.Path),
-			TargetType:  model.TargetSecurity,
-			Category:    "File Permissions",
-			Resource:    "file:" + sf.Path,
-			Severity:    severity,
-			Symptom:     fmt.Sprintf("%s has mode %04o; expected %s.", sf.Path, mode, sf.Expected),
-			RootCause:   "An overly permissive file mask lets unprivileged users read or modify system credential files.",
-			RemedySteps: []string{fmt.Sprintf("Restore the expected mode: chmod %s %s", strings.Fields(sf.Expected)[0], sf.Path)},
-			QuickFixCmd: fmt.Sprintf("chmod %s %s", strings.Fields(sf.Expected)[0], sf.Path),
-			Metadata:    map[string]string{"mode": fmt.Sprintf("%04o", mode)},
-		})
+		findings = append(findings, evaluateSingleFilePermission(sf, info.Mode().Perm()))
 	}
 
 	return findings
+}
+
+func evaluateSingleFilePermission(sf sensitiveFile, mode os.FileMode) model.Finding {
+	offending := mode & sf.ForbiddenBits
+	if offending == 0 {
+		return model.Finding{
+			ID:         "SEC-FIL-001",
+			Title:      fmt.Sprintf("File Permissions Secure: %s", sf.Path),
+			TargetType: model.TargetSecurity,
+			Category:   "File Permissions",
+			Resource:   "file:" + sf.Path,
+			Severity:   model.SeverityPass,
+			Symptom:    fmt.Sprintf("%s has safe permissions (%04o).", sf.Path, mode),
+		}
+	}
+
+	// World-writable is materially worse than merely over-readable: it lets
+	// an unprivileged user rewrite the file rather than only read it.
+	severity := model.SeverityWarning
+	if offending&0o002 != 0 {
+		severity = model.SeverityCritical
+	} else if sf.Path == "/etc/shadow" || sf.Path == "/etc/gshadow" {
+		severity = model.SeverityCritical
+	}
+
+	return model.Finding{
+		ID:          "SEC-FIL-001",
+		Title:       fmt.Sprintf("Insecure File Permissions: %s", sf.Path),
+		TargetType:  model.TargetSecurity,
+		Category:    "File Permissions",
+		Resource:    "file:" + sf.Path,
+		Severity:    severity,
+		Symptom:     fmt.Sprintf("%s has mode %04o; expected %s.", sf.Path, mode, sf.Expected),
+		RootCause:   "An overly permissive file mask lets unprivileged users read or modify system credential files.",
+		RemedySteps: []string{fmt.Sprintf("Restore the expected mode: chmod %s %s", strings.Fields(sf.Expected)[0], sf.Path)},
+		QuickFixCmd: fmt.Sprintf("chmod %s %s", strings.Fields(sf.Expected)[0], sf.Path),
+		Metadata:    map[string]string{"mode": fmt.Sprintf("%04o", mode)},
+	}
 }
 
 // -----------------------------------------------------------------------------
