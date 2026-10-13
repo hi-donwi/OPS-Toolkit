@@ -8,6 +8,41 @@ import (
 	"time"
 )
 
+func TestApplyTargetContextPinsExplicitContext(t *testing.T) {
+	t.Setenv("OPSKIT_DOCKER_CONTEXT", "lab")
+	t.Setenv("OPSKIT_KUBE_CONTEXT", "tenant-lab")
+
+	_, dockerArgs := applyTargetContext("docker", []string{"ps"})
+	if len(dockerArgs) < 3 || dockerArgs[0] != "--context" || dockerArgs[1] != "lab" {
+		t.Fatalf("docker args = %v", dockerArgs)
+	}
+	_, kubeArgs := applyTargetContext("kubectl", []string{"get", "nodes"})
+	if kubeArgs[0] != "--context" || kubeArgs[1] != "tenant-lab" {
+		t.Fatalf("kubectl args = %v", kubeArgs)
+	}
+	_, existing := applyTargetContext("docker", []string{"--context", "other", "ps"})
+	if existing[1] != "other" {
+		t.Fatalf("explicit context was overwritten: %v", existing)
+	}
+}
+
+func TestRedisCredentialsOverrideAmbientAuthenticationOnce(t *testing.T) {
+	t.Setenv("REDISCLI_AUTH", "ambient-fixture")
+	t.Setenv("OPSKIT_REDIS_PASSWORD", "selected-fixture")
+	count := 0
+	for _, entry := range commandEnv("redis-cli") {
+		if strings.HasPrefix(entry, "REDISCLI_AUTH=") {
+			count++
+			if entry != "REDISCLI_AUTH=selected-fixture" {
+				t.Fatalf("wrong credential selected: %s", entry)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one credential, got %d", count)
+	}
+}
+
 func TestRealRunCapturesStdout(t *testing.T) {
 	out, err := Real{}.Run(context.Background(), 5*time.Second, "echo", "hello")
 	if err != nil {

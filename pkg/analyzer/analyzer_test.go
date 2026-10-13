@@ -230,6 +230,75 @@ func TestDockerRulesEvaluateFakeOutput(t *testing.T) {
 	}
 }
 
+func TestCollectionFailureIsNeverReportedHealthy(t *testing.T) {
+	collectionErr := errors.New("daemon unavailable")
+	fake := &sysexec.Fake{Errors: map[string]error{
+		"docker ps -a --filter status=exited": collectionErr,
+		"docker ps --filter health=unhealthy": collectionErr,
+		"docker ps -a --format":               collectionErr,
+		"docker system df":                    collectionErr,
+		"docker service ls":                   collectionErr,
+		"docker node ls":                      collectionErr,
+		"kubectl get pods":                    errors.New("invalid JSON from API"),
+	}}
+
+	t.Run("docker", func(t *testing.T) {
+		env := model.EnvironmentContext{HasDocker: true, ActiveTargets: []model.TargetType{model.TargetDocker}}
+		rep, err := NewEngine(env, WithRunner(fake)).RunDiagnostics(context.Background(), model.TargetDocker, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCollectionFailure(t, rep.Findings, "DOC-ALL-001")
+	})
+
+	t.Run("swarm", func(t *testing.T) {
+		env := model.EnvironmentContext{IsDockerSwarm: true, ActiveTargets: []model.TargetType{model.TargetSwarm}}
+		rep, err := NewEngine(env, WithRunner(fake)).RunDiagnostics(context.Background(), model.TargetSwarm, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCollectionFailure(t, rep.Findings, "SWM-ALL-001")
+	})
+
+	t.Run("kubernetes", func(t *testing.T) {
+		env := model.EnvironmentContext{HasKubernetes: true, ActiveTargets: []model.TargetType{model.TargetKubernetes}}
+		rep, err := NewEngine(env, WithRunner(fake)).RunDiagnostics(context.Background(), model.TargetKubernetes, "tenant-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCollectionFailure(t, rep.Findings, "K8S-ALL-001")
+	})
+}
+
+func assertCollectionFailure(t *testing.T, findings []model.Finding, healthyID string) {
+	t.Helper()
+	var sawFailure bool
+	for _, finding := range findings {
+		if finding.ID == healthyID && finding.Severity == model.SeverityPass {
+			t.Fatalf("collection failure reported as healthy: %+v", finding)
+		}
+		if finding.Severity == model.SeverityWarning || finding.Severity == model.SeverityCritical {
+			sawFailure = true
+		}
+	}
+	if !sawFailure {
+		t.Fatalf("expected an actionable collection-failure finding, got %+v", findings)
+	}
+}
+
+func TestMalformedKubernetesListIsNotHealthy(t *testing.T) {
+	runner := &sysexec.Fake{Outputs: map[string]string{"kubectl": `{"status":"success"}`}}
+	engine := NewEngine(model.EnvironmentContext{HasKubernetes: true}, WithRunner(runner))
+	rep, err := engine.RunDiagnostics(context.Background(), model.TargetKubernetes, "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.CollectionErrors == 0 {
+		t.Fatalf("malformed resource lists must fail verification: %+v", rep)
+	}
+	assertCollectionFailure(t, rep.Findings, "K8S-ALL-001")
+}
+
 func TestSummarize(t *testing.T) {
 	got := Summarize([]model.Finding{
 		{Severity: model.SeverityCritical},

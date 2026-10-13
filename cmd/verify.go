@@ -62,12 +62,17 @@ Exit codes:
 		}
 
 		if JSONOutput {
-			_ = report.PrintJSON(os.Stdout, rep)
+			if err := report.PrintJSON(os.Stdout, rep); err != nil {
+				return &ExitError{Code: 2, Msg: fmt.Sprintf("Cannot write verification report: %v", err)}
+			}
 		} else {
 			report.PrintConsole(os.Stdout, rep, NoColor)
 		}
 
 		c := report.Colors(NoColor)
+		if err := verifyCoverage(rep); err != nil {
+			return err
+		}
 		breaches := countAtOrAbove(rep.Summary, threshold)
 
 		if breaches > 0 {
@@ -77,10 +82,21 @@ Exit codes:
 			return &ExitError{Code: 1, Msg: msg}
 		}
 
-		fmt.Printf("\n%s No finding at or above '%s'.\n",
+		out := os.Stdout
+		if JSONOutput {
+			out = os.Stderr
+		}
+		fmt.Fprintf(out, "\n%s No finding at or above '%s'.\n",
 			c.Wrap(c.Green, "[CI/CD GATE PASSED]"), threshold)
 		return nil
 	},
+}
+
+func verifyCoverage(rep *model.Report) error {
+	if rep.ChecksExecuted == 0 || rep.CollectionErrors > 0 {
+		return &ExitError{Code: 2, Msg: fmt.Sprintf("Verification incomplete: %d findings, %d collection errors", rep.ChecksExecuted, rep.CollectionErrors)}
+	}
+	return nil
 }
 
 // parseTargetFilter validates --target.

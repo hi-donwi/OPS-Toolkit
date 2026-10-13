@@ -3,6 +3,8 @@ package analyzer
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
@@ -28,39 +30,56 @@ func (e *Engine) evaluateKubernetes(ctx context.Context, namespace string) []mod
 	}
 
 	findings := make([]model.Finding, 0, 16)
+	var collectionErr error
 	reachable := false
 
 	if raw, err := e.kubectlJSON(ctx, "pods", scope); err == nil {
 		reachable = true
 		var list podList
-		if json.Unmarshal(raw, &list) == nil {
+		if err := json.Unmarshal(raw, &list); err == nil {
 			findings = append(findings, evaluatePods(list.Items)...)
+		} else {
+			collectionErr = errors.Join(collectionErr, err)
 		}
+	} else {
+		collectionErr = errors.Join(collectionErr, err)
 	}
 
 	if raw, err := e.kubectlJSON(ctx, "endpoints", scope); err == nil {
 		reachable = true
 		var list endpointsList
-		if json.Unmarshal(raw, &list) == nil {
+		if err := json.Unmarshal(raw, &list); err == nil {
 			findings = append(findings, evaluateEndpoints(list.Items)...)
+		} else {
+			collectionErr = errors.Join(collectionErr, err)
 		}
+	} else {
+		collectionErr = errors.Join(collectionErr, err)
 	}
 
 	if raw, err := e.kubectlJSON(ctx, "persistentvolumeclaims", scope); err == nil {
 		reachable = true
 		var list pvcList
-		if json.Unmarshal(raw, &list) == nil {
+		if err := json.Unmarshal(raw, &list); err == nil {
 			findings = append(findings, evaluatePVCs(list.Items)...)
+		} else {
+			collectionErr = errors.Join(collectionErr, err)
 		}
+	} else {
+		collectionErr = errors.Join(collectionErr, err)
 	}
 
 	// Nodes are cluster-scoped; a namespace filter does not apply.
 	if raw, err := e.kubectlJSON(ctx, "nodes", nil); err == nil {
 		reachable = true
 		var list nodeList
-		if json.Unmarshal(raw, &list) == nil {
+		if err := json.Unmarshal(raw, &list); err == nil {
 			findings = append(findings, evaluateNodes(list.Items)...)
+		} else {
+			collectionErr = errors.Join(collectionErr, err)
 		}
+	} else {
+		collectionErr = errors.Join(collectionErr, err)
 	}
 
 	findings = append(findings, e.checkIngress(ctx, scope)...)
@@ -68,6 +87,8 @@ func (e *Engine) evaluateKubernetes(ctx context.Context, namespace string) []mod
 	dnsPods, dnsFound := e.queryClusterDNSPods(ctx)
 	if dnsFound {
 		findings = append(findings, evaluateClusterDNS(dnsPods)...)
+	} else {
+		collectionErr = errors.Join(collectionErr, fmt.Errorf("CoreDNS status unavailable"))
 	}
 
 	if !reachable {
@@ -78,6 +99,7 @@ func (e *Engine) evaluateKubernetes(ctx context.Context, namespace string) []mod
 			Category:   "Cluster Connectivity",
 			Resource:   "k8s:apiserver",
 			Severity:   model.SeverityWarning,
+			Metadata:   map[string]string{"collection_error": "true"},
 			Symptom:    "A kubeconfig is present but no Kubernetes resource could be listed.",
 			RootCause:  "The current context points at an unreachable or unauthorized API server — a stale context, an expired credential, or no network path to the control plane.",
 			RemedySteps: []string{
@@ -87,6 +109,9 @@ func (e *Engine) evaluateKubernetes(ctx context.Context, namespace string) []mod
 		}}
 	}
 
+	if collectionErr != nil {
+		findings = append(findings, collectionUnavailable("K8S-COL-001", model.TargetKubernetes, "k8s:resources", collectionErr))
+	}
 	if len(findings) == 0 {
 		findings = append(findings, model.Finding{
 			ID:         "K8S-ALL-001",
@@ -106,7 +131,17 @@ func (e *Engine) evaluateKubernetes(ctx context.Context, namespace string) []mod
 func (e *Engine) kubectlJSON(ctx context.Context, kind string, scope []string) ([]byte, error) {
 	args := append([]string{"get", kind}, scope...)
 	args = append(args, "-o", "json")
-	return e.run.Run(ctx, k8sTimeout, "kubectl", args...)
+	raw, err := e.run.Run(ctx, k8sTimeout, "kubectl", args...)
+	if err != nil {
+		return nil, err
+	}
+	var list struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(raw, &list); err != nil || len(list.Items) == 0 || list.Items[0] != '[' {
+		return nil, fmt.Errorf("kubectl returned an invalid %s list", kind)
+	}
+	return raw, nil
 }
 
 // queryClusterDNSPods tries standard and distribution-specific CoreDNS labels

@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -79,25 +80,32 @@ func (e *Engine) evaluateDocker(ctx context.Context) []model.Finding {
 	}
 
 	findings := make([]model.Finding, 0, 8)
+	var collectionErr error
 
 	exited, err := e.run.Run(ctx, 15*time.Second, "docker", "ps", "-a",
 		"--filter", "status=exited",
 		"--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}")
-	if err == nil {
+	if err != nil {
+		collectionErr = errors.Join(collectionErr, err)
+	} else {
 		findings = append(findings, evaluateExitedContainers(parseDockerPS(string(exited)))...)
 	}
 
 	unhealthy, err := e.run.Run(ctx, 15*time.Second, "docker", "ps",
 		"--filter", "health=unhealthy",
 		"--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}")
-	if err == nil {
+	if err != nil {
+		collectionErr = errors.Join(collectionErr, err)
+	} else {
 		findings = append(findings, evaluateUnhealthyContainers(parseDockerPS(string(unhealthy)))...)
 	}
 
 	findings = append(findings, e.checkRestartLoops(ctx)...)
 	findings = append(findings, e.checkDockerDiskFootprint(ctx)...)
 
-	if len(findings) == 0 {
+	if collectionErr != nil {
+		findings = append(findings, collectionUnavailable("DOC-COL-001", model.TargetDocker, "docker:engine", collectionErr))
+	} else if len(findings) == 0 {
 		findings = append(findings, model.Finding{
 			ID:         "DOC-ALL-001",
 			Title:      "Docker Containers Operating Normally",
@@ -234,7 +242,7 @@ func (e *Engine) checkRestartLoops(ctx context.Context) []model.Finding {
 	out, err := e.run.Run(ctx, 15*time.Second, "docker", "ps", "-a",
 		"--format", "{{.ID}}\t{{.Names}}")
 	if err != nil {
-		return nil
+		return []model.Finding{collectionUnavailable("DOC-COL-001", model.TargetDocker, "docker:restart-counts", err)}
 	}
 
 	rows := parseDockerPS(string(out))
@@ -269,6 +277,7 @@ func (e *Engine) checkRestartLoops(ctx context.Context) []model.Finding {
 		inspect, err := e.run.Run(ctx, 10*time.Second, "docker", "inspect",
 			"--format", "{{.RestartCount}}\t{{.State.Status}}\t{{.HostConfig.RestartPolicy.Name}}", c.ID)
 		if err != nil {
+			findings = append(findings, collectionUnavailable("DOC-COL-001", model.TargetDocker, "container:"+c.ID, err))
 			continue
 		}
 
@@ -410,12 +419,12 @@ func (e *Engine) checkDockerDiskFootprint(ctx context.Context) []model.Finding {
 	out, err := e.run.Run(ctx, 20*time.Second, "docker", "system", "df",
 		"--format", "{{.Type}}\t{{.Size}}\t{{.Reclaimable}}")
 	if err != nil {
-		return nil
+		return []model.Finding{collectionUnavailable("DOC-COL-001", model.TargetDocker, "docker:storage", err)}
 	}
 
 	fsInfo, err := e.statfs(rootFilesystemPath())
 	if err != nil {
-		return nil
+		return []model.Finding{collectionUnavailable("DOC-COL-001", model.TargetDocker, "docker:storage", err)}
 	}
 
 	return evaluateDockerDiskFootprint(parseDockerSystemDF(string(out)), fsInfo.TotalBytes())
