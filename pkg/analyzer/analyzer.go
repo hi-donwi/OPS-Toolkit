@@ -28,6 +28,10 @@ type Engine struct {
 
 	// procRoot is the mount point of procfs. Tests point it at a fixture tree.
 	procRoot string
+	// sysRoot is the mount point of sysfs. Tests point it at a fixture tree.
+	sysRoot string
+	// profile enables specialized rule sets (e.g. data-stack).
+	profile string
 	// statfs reports filesystem usage; swapped out in tests.
 	statfs func(path string) (fsUsage, error)
 	// now supplies the clock, so time-sensitive rules stay deterministic.
@@ -45,6 +49,14 @@ func WithRunner(r sysexec.Runner) Option { return func(e *Engine) { e.run = r } 
 // WithProcRoot points procfs reads at an alternate tree.
 func WithProcRoot(root string) Option { return func(e *Engine) { e.procRoot = root } }
 
+// WithSysRoot points sysfs reads at an alternate tree.
+func WithSysRoot(root string) Option { return func(e *Engine) { e.sysRoot = root } }
+
+// WithProfile activates a specialized diagnostic profile (e.g. "data-stack").
+func WithProfile(profile string) Option {
+	return func(e *Engine) { e.profile = strings.ToLower(strings.TrimSpace(profile)) }
+}
+
 // WithClock replaces the time source.
 func WithClock(now func() time.Time) Option { return func(e *Engine) { e.now = now } }
 
@@ -61,6 +73,9 @@ func WithResolver(fn func(ctx context.Context, host string) ([]string, error)) O
 // DefaultProcRoot is the procfs mount point.
 const DefaultProcRoot = "/proc"
 
+// DefaultSysRoot is the sysfs mount point.
+const DefaultSysRoot = "/sys"
+
 // ProcRootFromEnv returns the procfs root to read host telemetry from.
 //
 // Inside a container, "/proc" is the container's own view: its meminfo, load
@@ -72,10 +87,15 @@ func ProcRootFromEnv() string {
 	if custom := strings.TrimSpace(os.Getenv("OPSKIT_PROC_ROOT")); custom != "" {
 		return custom
 	}
-	if custom := strings.TrimSpace(os.Getenv("OPSKIT_PROC_ROOT")); custom != "" {
+	return DefaultProcRoot
+}
+
+// SysRootFromEnv returns the sysfs root to read kernel telemetry from.
+func SysRootFromEnv() string {
+	if custom := strings.TrimSpace(os.Getenv("OPSKIT_SYS_ROOT")); custom != "" {
 		return custom
 	}
-	return DefaultProcRoot
+	return DefaultSysRoot
 }
 
 // NewEngine creates an analyzer engine bound to a detected environment.
@@ -84,6 +104,7 @@ func NewEngine(env model.EnvironmentContext, opts ...Option) *Engine {
 		env:        env,
 		run:        sysexec.Real{},
 		procRoot:   ProcRootFromEnv(),
+		sysRoot:    SysRootFromEnv(),
 		statfs:     statfsUsage,
 		now:        time.Now,
 		lookupHost: defaultLookupHost,

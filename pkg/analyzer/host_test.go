@@ -374,3 +374,172 @@ func TestRootFilesystemPathTargetsWritableVolume(t *testing.T) {
 		}
 	}
 }
+
+func TestParseTimedatectlSync(t *testing.T) {
+	tests := []struct {
+		name       string
+		output     string
+		wantSynced bool
+		wantFound  bool
+	}{
+		{
+			name:       "timedatectl show synced",
+			output:     "Timezone=UTC\nLocalRTC=no\nCanNTP=yes\nNTP=yes\nNTPSynchronized=yes\n",
+			wantSynced: true,
+			wantFound:  true,
+		},
+		{
+			name:       "timedatectl show not synced",
+			output:     "Timezone=UTC\nLocalRTC=no\nCanNTP=yes\nNTP=yes\nNTPSynchronized=no\n",
+			wantSynced: false,
+			wantFound:  true,
+		},
+		{
+			name:       "timedatectl status synced",
+			output:     "               Local time: Mon 2026-10-13 08:00:00 UTC\n           Universal time: Mon 2026-10-13 08:00:00 UTC\n                 RTC time: Mon 2026-10-13 08:00:00\n                Time zone: UTC (UTC, +0000)\nSystem clock synchronized: yes\n              NTP service: active\n          RTC in local TZ: no\n",
+			wantSynced: true,
+			wantFound:  true,
+		},
+		{
+			name:       "timedatectl status not synced",
+			output:     "System clock synchronized: no\nNTP service: inactive\n",
+			wantSynced: false,
+			wantFound:  true,
+		},
+		{
+			name:       "empty or unrelated output",
+			output:     "command not found\n",
+			wantSynced: false,
+			wantFound:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synced, found := parseTimedatectlSync(tc.output)
+			if synced != tc.wantSynced || found != tc.wantFound {
+				t.Errorf("parseTimedatectlSync() = (%v, %v), want (%v, %v)", synced, found, tc.wantSynced, tc.wantFound)
+			}
+		})
+	}
+}
+
+func TestParseChronycTracking(t *testing.T) {
+	tests := []struct {
+		name       string
+		output     string
+		wantSynced bool
+		wantFound  bool
+	}{
+		{
+			name: "chronyc tracking normal",
+			output: `Reference ID    : CA160538 (time.cloudflare.com)
+Stratum         : 3
+Ref time (UTC)  : Mon Oct 13 08:00:00 2026
+System time     : 0.000004123 seconds slow of NTP time
+Last offset     : -0.000001234 seconds
+RMS offset      : 0.000012345 seconds
+Frequency       : 12.345 ppm slow
+Residual freq   : -0.001 ppm
+Skew            : 0.123 ppm
+Root delay      : 0.012345678 seconds
+Root dispersion : 0.001234567 seconds
+Update interval : 64.0 seconds
+Leap status     : Normal
+`,
+			wantSynced: true,
+			wantFound:  true,
+		},
+		{
+			name: "chronyc tracking not synchronised",
+			output: `Reference ID    : 00000000 ()
+Stratum         : 0
+Ref time (UTC)  : Thu Jan 01 00:00:00 1970
+System time     : 0.000000000 seconds slow of NTP time
+Last offset     : +0.000000000 seconds
+RMS offset      : 0.000000000 seconds
+Frequency       : 0.000 ppm
+Residual freq   : +0.000 ppm
+Skew            : 0.000 ppm
+Root delay      : 1.000000000 seconds
+Root dispersion : 1.000000000 seconds
+Update interval : 0.0 seconds
+Leap status     : Not synchronised
+`,
+			wantSynced: false,
+			wantFound:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synced, found := parseChronycTracking(tc.output)
+			if synced != tc.wantSynced || found != tc.wantFound {
+				t.Errorf("parseChronycTracking() = (%v, %v), want (%v, %v)", synced, found, tc.wantSynced, tc.wantFound)
+			}
+		})
+	}
+}
+
+func TestEvaluateClockSync(t *testing.T) {
+	passFindings := evaluateClockSync(true, "systemd-timesyncd")
+	if len(passFindings) != 1 || passFindings[0].Severity != model.SeverityPass {
+		t.Fatalf("expected 1 PASS finding, got %+v", passFindings)
+	}
+	if passFindings[0].ID != "HOST-CLK-001" {
+		t.Errorf("ID = %s, want HOST-CLK-001", passFindings[0].ID)
+	}
+
+	critFindings := evaluateClockSync(false, "systemd-timesyncd")
+	if len(critFindings) != 1 || critFindings[0].Severity != model.SeverityCritical {
+		t.Fatalf("expected 1 CRITICAL finding, got %+v", critFindings)
+	}
+	if critFindings[0].ID != "HOST-CLK-001" {
+		t.Errorf("ID = %s, want HOST-CLK-001", critFindings[0].ID)
+	}
+}
+
+func TestEvaluateDataStackKernel(t *testing.T) {
+	// 1. Suboptimal settings: low max_map_count, high swappiness, THP enabled, low file-max
+	suboptimal := dataStackKernelParams{
+		MaxMapCount: 65530,
+		Swappiness:  60,
+		FileMax:     32768,
+		THPEnabled:  "[always] madvise never",
+	}
+
+	findings := evaluateDataStackKernel(suboptimal)
+	foundIDs := make(map[string]model.Severity)
+	for _, f := range findings {
+		foundIDs[f.ID] = f.Severity
+	}
+
+	if sev, ok := foundIDs["HOST-KRN-001"]; !ok || sev != model.SeverityWarning {
+		t.Errorf("expected HOST-KRN-001 WARNING for low max_map_count, got %v", sev)
+	}
+	if sev, ok := foundIDs["HOST-KRN-002"]; !ok || sev != model.SeverityWarning {
+		t.Errorf("expected HOST-KRN-002 WARNING for high swappiness, got %v", sev)
+	}
+	if sev, ok := foundIDs["HOST-KRN-003"]; !ok || sev != model.SeverityWarning {
+		t.Errorf("expected HOST-KRN-003 WARNING for THP enabled, got %v", sev)
+	}
+	if sev, ok := foundIDs["HOST-KRN-004"]; !ok || sev != model.SeverityWarning {
+		t.Errorf("expected HOST-KRN-004 WARNING for low file-max, got %v", sev)
+	}
+
+	// 2. Fully optimized settings
+	optimized := dataStackKernelParams{
+		MaxMapCount: 262144,
+		Swappiness:  1,
+		FileMax:     2097152,
+		THPEnabled:  "always [madvise] never",
+	}
+
+	passFindings := evaluateDataStackKernel(optimized)
+	for _, f := range passFindings {
+		if f.Severity != model.SeverityPass {
+			t.Errorf("expected PASS for optimized param, got %s: %s", f.ID, f.Severity)
+		}
+	}
+}
+

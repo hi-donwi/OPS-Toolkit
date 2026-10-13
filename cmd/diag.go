@@ -15,6 +15,7 @@ var (
 	diagNamespace string
 	diagShowPass  bool
 	diagStrict    bool
+	diagProfile   string
 )
 
 var diagCmd = &cobra.Command{
@@ -74,6 +75,7 @@ func init() {
 	diagCmd.Flags().StringVarP(&diagNamespace, "namespace", "n", "", "Target Kubernetes namespace (if K8s active)")
 	diagCmd.PersistentFlags().BoolVar(&diagShowPass, "show-pass", false, "Display passed diagnostic checks in console output")
 	diagCmd.PersistentFlags().BoolVar(&diagStrict, "strict", false, "Exit with code 3 if zero diagnostic checks executed")
+	diagCmd.PersistentFlags().StringVar(&diagProfile, "profile", "", "Diagnostic profile (e.g. data-stack to evaluate database/broker kernel prerequisites)")
 
 	diagCmd.AddCommand(diagHostCmd)
 	diagCmd.AddCommand(diagDockerCmd)
@@ -99,7 +101,11 @@ func runDiagnostics(targetFilter model.TargetType) error {
 	env := detector.Detect()
 
 	// 2. Initialize Analyzer Engine
-	engine := analyzer.NewEngine(env)
+	opts := make([]analyzer.Option, 0, 1)
+	if diagProfile != "" {
+		opts = append(opts, analyzer.WithProfile(diagProfile))
+	}
+	engine := analyzer.NewEngine(env, opts...)
 
 	// 3. Execute Diagnostic Rules
 	rep, err := engine.RunDiagnostics(ctx, targetFilter, diagNamespace)

@@ -47,6 +47,9 @@ func (e *Engine) evaluateHost(ctx context.Context) []model.Finding {
 	findings = append(findings, e.checkDNS(ctx)...)
 	findings = append(findings, e.checkSystemdUnits(ctx)...)
 
+	findings = append(findings, e.checkClockSync(ctx)...)
+	findings = append(findings, e.checkKernelDataStack()...)
+
 	return findings
 }
 
@@ -57,6 +60,15 @@ func (e *Engine) evaluateHost(ctx context.Context) []model.Finding {
 // readProc reads a file relative to the configured procfs root.
 func (e *Engine) readProc(name string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(e.procRoot, name))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// readSys reads a file relative to the configured sysfs root.
+func (e *Engine) readSys(name string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(e.sysRoot, name))
 	if err != nil {
 		return "", err
 	}
