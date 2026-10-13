@@ -213,14 +213,14 @@ func evaluateClockSync(synced bool, source string) []model.Finding {
 	}
 
 	return []model.Finding{{
-		ID:          "HOST-CLK-001",
-		Title:       "Host Clock Not Synchronized",
-		TargetType:  model.TargetHost,
-		Category:    "Time Synchronization",
-		Resource:    "clock:" + source,
-		Severity:    model.SeverityCritical,
-		Symptom:     fmt.Sprintf("Host clock is not synchronized with NTP (%s). Time drift causes database consistency errors, transaction sequencing failures, and token expiration bugs.", source),
-		RootCause:   "NTP synchronization daemon (systemd-timesyncd or chrony) is inactive, disabled, or failing upstream synchronization.",
+		ID:         "HOST-CLK-001",
+		Title:      "Host Clock Not Synchronized",
+		TargetType: model.TargetHost,
+		Category:   "Time Synchronization",
+		Resource:   "clock:" + source,
+		Severity:   model.SeverityCritical,
+		Symptom:    fmt.Sprintf("Host clock is not synchronized with NTP (%s). Time drift causes database consistency errors, transaction sequencing failures, and token expiration bugs.", source),
+		RootCause:  "NTP synchronization daemon (systemd-timesyncd or chrony) is inactive, disabled, or failing upstream synchronization.",
 		RemedySteps: []string{
 			"Enable and start systemd-timesyncd: systemctl enable --now systemd-timesyncd",
 			"Or install and verify chrony: apt-get install -y chrony && systemctl start chrony && chronyc tracking",

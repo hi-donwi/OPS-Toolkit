@@ -542,4 +542,3 @@ func TestEvaluateDataStackKernel(t *testing.T) {
 		}
 	}
 }
-
