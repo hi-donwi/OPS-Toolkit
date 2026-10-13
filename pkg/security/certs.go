@@ -132,20 +132,37 @@ func expiryFinding(resource, label string, cert *x509.Certificate, remedy []stri
 				label, -daysRemaining, expires, cert.Subject.CommonName, cert.Issuer.CommonName)
 		}
 
+		sev := tier.Severity
+		title := fmt.Sprintf("%s: %s", tier.Title, label)
+		rootCause := tier.RootCause
+
+		// Expired or expiring CA roots in trust stores are scored as WARNING
+		// rather than CRITICAL; replacement roots continue serving active connections.
+		if cert.IsCA {
+			if sev == model.SeverityCritical {
+				sev = model.SeverityWarning
+				if daysRemaining <= 0 {
+					title = fmt.Sprintf("Trust Store Root/CA Expired: %s", label)
+					rootCause = "A root CA certificate in the trust store is past its notAfter date. Active traffic with newer roots is unaffected, but legacy validation may fail."
+				}
+			}
+		}
+
 		return model.Finding{
 			ID:          "SEC-CRT-001",
-			Title:       fmt.Sprintf("%s: %s", tier.Title, label),
+			Title:       title,
 			TargetType:  model.TargetSecurity,
 			Category:    "Certificate Expiry",
 			Resource:    resource,
-			Severity:    tier.Severity,
+			Severity:    sev,
 			Symptom:     symptom,
-			RootCause:   tier.RootCause,
+			RootCause:   rootCause,
 			RemedySteps: remedy,
 			Metadata: map[string]string{
 				"days_remaining": strconv.Itoa(daysRemaining),
 				"not_after":      expires,
 				"issuer":         cert.Issuer.CommonName,
+				"is_ca":          strconv.FormatBool(cert.IsCA),
 			},
 		}
 	}

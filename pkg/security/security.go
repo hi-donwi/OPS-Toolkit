@@ -3,6 +3,7 @@ package security
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"runtime"
@@ -101,7 +102,9 @@ func AuditExposedPorts() []model.Finding {
 		Description string
 	}{
 		{2375, "Docker Daemon (Unencrypted)", "Allows unauthenticated remote code execution on the host."},
+		{5432, "PostgreSQL", "Exposed relational database server on external network interface."},
 		{6379, "Redis", "Exposed in-memory key-value database without TLS."},
+		{9092, "Apache Kafka", "Exposed message broker / event streaming log without network isolation."},
 		{27017, "MongoDB", "Exposed document database."},
 		{2379, "Etcd", "Kubernetes / clustering state store."},
 		{11211, "Memcached", "Vulnerable to amplification DDoS and data extraction."},
@@ -130,6 +133,42 @@ func AuditExposedPorts() []model.Finding {
 	return findings
 }
 
+func parseProcNetListening(r io.Reader, port int) (bool, string) {
+	scanner := bufio.NewScanner(r)
+	scanner.Scan() // skip header line
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 4 {
+			continue
+		}
+		// State 0A == TCP_LISTEN
+		if fields[3] != "0A" {
+			continue
+		}
+		addrParts := strings.Split(fields[1], ":")
+		if len(addrParts) != 2 {
+			continue
+		}
+		hexPort := addrParts[1]
+		var parsedPort int64
+		if _, err := fmt.Sscanf(hexPort, "%X", &parsedPort); err == nil && int(parsedPort) == port {
+			hexIP := addrParts[0]
+			// Check if bound to all interfaces
+			if hexIP == "00000000" {
+				return true, "0.0.0.0 (all interfaces)"
+			}
+			if hexIP == "00000000000000000000000000000000" {
+				return true, ":: (all IPv6/IPv4 interfaces)"
+			}
+			// Check if NOT loopback (127.0.0.1 in hex is 0100007F)
+			if hexIP != "0100007F" && hexIP != "00000000000000000000000001000000" {
+				return true, "non-loopback IP"
+			}
+		}
+	}
+	return false, ""
+}
+
 func isPortExposedExternally(port int) (bool, string) {
 	// 1. On Linux, inspect /proc/net/tcp and /proc/net/tcp6 for listening sockets (state 0A)
 	if runtime.GOOS == "linux" {
@@ -140,42 +179,11 @@ func isPortExposedExternally(port int) (bool, string) {
 				continue
 			}
 			checkedProc = true
-			scanner := bufio.NewScanner(f)
-			scanner.Scan() // skip header line
-			for scanner.Scan() {
-				fields := strings.Fields(scanner.Text())
-				if len(fields) < 4 {
-					continue
-				}
-				// State 0A == TCP_LISTEN
-				if fields[3] != "0A" {
-					continue
-				}
-				addrParts := strings.Split(fields[1], ":")
-				if len(addrParts) != 2 {
-					continue
-				}
-				hexPort := addrParts[1]
-				var parsedPort int64
-				if _, err := fmt.Sscanf(hexPort, "%X", &parsedPort); err == nil && int(parsedPort) == port {
-					hexIP := addrParts[0]
-					// Check if bound to all interfaces
-					if hexIP == "00000000" {
-						f.Close()
-						return true, "0.0.0.0 (all interfaces)"
-					}
-					if hexIP == "00000000000000000000000000000000" {
-						f.Close()
-						return true, ":: (all IPv6/IPv4 interfaces)"
-					}
-					// Check if NOT loopback (127.0.0.1 in hex is 0100007F)
-					if hexIP != "0100007F" && hexIP != "00000000000000000000000001000000" {
-						f.Close()
-						return true, "non-loopback IP"
-					}
-				}
-			}
+			exposed, bindAddr := parseProcNetListening(f, port)
 			f.Close()
+			if exposed {
+				return true, bindAddr
+			}
 		}
 		if checkedProc {
 			return false, ""

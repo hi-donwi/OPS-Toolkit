@@ -64,7 +64,136 @@ func parseMounts(content string) []mountEntry {
 	return entries
 }
 
+// mountInfoEntry is one line of /proc/self/mountinfo.
+type mountInfoEntry struct {
+	MountID      int
+	ParentID     int
+	MajorMinor   string
+	Root         string
+	MountPoint   string
+	MountOptions []string
+	FSType       string
+	Source       string
+	SuperOptions []string
+}
+
+func (m mountInfoEntry) ReadOnly() bool {
+	for _, o := range m.MountOptions {
+		if o == "ro" {
+			return true
+		}
+	}
+	for _, o := range m.SuperOptions {
+		if o == "ro" {
+			return true
+		}
+	}
+	return false
+}
+
+// parseMountInfo parses /proc/self/mountinfo.
+func parseMountInfo(content string) []mountInfoEntry {
+	entries := make([]mountInfoEntry, 0, 32)
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+		sepIdx := -1
+		for i, f := range fields {
+			if f == "-" {
+				sepIdx = i
+				break
+			}
+		}
+		if sepIdx < 6 || len(fields) < sepIdx+3 {
+			continue
+		}
+
+		mountID, _ := strconv.Atoi(fields[0])
+		parentID, _ := strconv.Atoi(fields[1])
+
+		entry := mountInfoEntry{
+			MountID:      mountID,
+			ParentID:     parentID,
+			MajorMinor:   fields[2],
+			Root:         fields[3],
+			MountPoint:   fields[4],
+			MountOptions: strings.Split(fields[5], ","),
+			FSType:       fields[sepIdx+1],
+			Source:       fields[sepIdx+2],
+		}
+		if len(fields) > sepIdx+3 {
+			entry.SuperOptions = strings.Split(fields[sepIdx+3], ",")
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func evaluateReadOnlyMountInfo(entries []mountInfoEntry) []model.Finding {
+	findings := make([]model.Finding, 0)
+
+	for _, m := range entries {
+		if !m.ReadOnly() || pseudoFilesystems[m.FSType] {
+			continue
+		}
+		// Sub-tree or single-file bind mounts (e.g. docker -v ./foo:/bar:ro) have Root != "/"
+		if m.Root != "/" {
+			continue
+		}
+		// A read-only bind of a container image layer or snap is by design.
+		if strings.HasPrefix(m.MountPoint, "/snap/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/docker/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/containerd/") {
+			continue
+		}
+		// Real data filesystems are backed by a block device.
+		if !strings.HasPrefix(m.Source, "/dev/") {
+			continue
+		}
+
+		findings = append(findings, model.Finding{
+			ID:         "HOST-ROF-001",
+			Title:      fmt.Sprintf("Filesystem Mounted Read-Only: %s", m.MountPoint),
+			TargetType: model.TargetHost,
+			Category:   "Storage Integrity",
+			Resource:   "filesystem:" + m.MountPoint,
+			Severity:   model.SeverityCritical,
+			Symptom:    fmt.Sprintf("%s (%s on %s) is mounted read-only. All writes to this path will fail.", m.MountPoint, m.FSType, m.Source),
+			RootCause:  "The kernel remounted the filesystem read-only after an I/O or journal error, or it was mounted ro deliberately. This is the classic signature of failing storage.",
+			RemedySteps: []string{
+				fmt.Sprintf("Check the kernel ring buffer for the triggering I/O error: dmesg -T | grep -i -E 'EXT4-fs|I/O error|%s'", m.Source),
+				fmt.Sprintf("Run a filesystem check on the unmounted device: fsck -y %s", m.Source),
+				"Inspect the underlying disk health with smartctl before remounting read-write",
+			},
+			Metadata: map[string]string{"device": m.Source, "fstype": m.FSType},
+		})
+	}
+
+	if len(findings) == 0 {
+		findings = append(findings, model.Finding{
+			ID:         "HOST-ROF-001",
+			Title:      "All Data Filesystems Writable",
+			TargetType: model.TargetHost,
+			Category:   "Storage Integrity",
+			Resource:   "filesystem:mounts",
+			Severity:   model.SeverityPass,
+			Symptom:    "No data filesystem has been remounted read-only.",
+		})
+	}
+
+	return findings
+}
+
 func (e *Engine) checkReadOnlyMounts() []model.Finding {
+	if content, err := e.readProc("self/mountinfo"); err == nil && len(strings.TrimSpace(content)) > 0 {
+		return evaluateReadOnlyMountInfo(parseMountInfo(content))
+	}
+	if content, err := e.readProc("mountinfo"); err == nil && len(strings.TrimSpace(content)) > 0 {
+		return evaluateReadOnlyMountInfo(parseMountInfo(content))
+	}
+
 	content, err := e.readProc("mounts")
 	if err != nil {
 		return nil
@@ -80,7 +209,13 @@ func evaluateReadOnlyMounts(mounts []mountEntry) []model.Finding {
 			continue
 		}
 		// A read-only bind of a container image layer is by design.
-		if strings.HasPrefix(m.MountPoint, "/snap/") || strings.HasPrefix(m.MountPoint, "/var/lib/docker/") {
+		if strings.HasPrefix(m.MountPoint, "/snap/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/docker/") ||
+			strings.HasPrefix(m.MountPoint, "/var/lib/containerd/") {
+			continue
+		}
+		// Real data filesystems are backed by a block device.
+		if !strings.HasPrefix(m.Device, "/dev/") {
 			continue
 		}
 
@@ -404,4 +539,170 @@ func evaluateOOMKills(events []oomKillEvent) []model.Finding {
 	}
 
 	return findings
+}
+
+// -----------------------------------------------------------------------------
+// HOST-KRN-001..004 — kernel tuning for data workloads (data-stack profile)
+// -----------------------------------------------------------------------------
+
+type dataStackKernelParams struct {
+	MaxMapCount int64
+	Swappiness  int64
+	FileMax     int64
+	THPEnabled  string
+}
+
+func evaluateDataStackKernel(p dataStackKernelParams) []model.Finding {
+	findings := make([]model.Finding, 0)
+
+	// 1. vm.max_map_count (required >= 262144 for MongoDB, Kafka, Elasticsearch)
+	if p.MaxMapCount > 0 {
+		if p.MaxMapCount < 262144 {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-001",
+				Title:      "Low vm.max_map_count for Data Workloads",
+				TargetType: model.TargetHost,
+				Category:   "Kernel Optimization",
+				Resource:   "sysctl:vm.max_map_count",
+				Severity:   model.SeverityWarning,
+				Symptom:    fmt.Sprintf("vm.max_map_count is %d (expected >= 262144 for database and message broker workloads).", p.MaxMapCount),
+				RootCause:  "Default Linux max_map_count is insufficient for high-concurrency memory-mapped storage engines (MongoDB WiredTiger, Apache Kafka, Elasticsearch). Workloads risk failing with out-of-memory or mmap errors under load.",
+				RemedySteps: []string{
+					"Set runtime limit: sysctl -w vm.max_map_count=262144",
+					"Persist in /etc/sysctl.d/99-datastack.conf: echo 'vm.max_map_count=262144' > /etc/sysctl.d/99-datastack.conf",
+				},
+				QuickFixCmd: "sysctl -w vm.max_map_count=262144",
+				Metadata:    map[string]string{"max_map_count": strconv.FormatInt(p.MaxMapCount, 10)},
+			})
+		} else {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-001",
+				Title:      "vm.max_map_count Optimized",
+				TargetType: model.TargetHost,
+				Category:   "Kernel Optimization",
+				Resource:   "sysctl:vm.max_map_count",
+				Severity:   model.SeverityPass,
+				Symptom:    fmt.Sprintf("vm.max_map_count is %d (>= 262144).", p.MaxMapCount),
+			})
+		}
+	}
+
+	// 2. vm.swappiness (expected <= 10 for low-latency databases like Postgres, Mongo, Redis)
+	if p.Swappiness >= 0 {
+		if p.Swappiness > 10 {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-002",
+				Title:      "Elevated vm.swappiness for Low-Latency Databases",
+				TargetType: model.TargetHost,
+				Category:   "Kernel Optimization",
+				Resource:   "sysctl:vm.swappiness",
+				Severity:   model.SeverityWarning,
+				Symptom:    fmt.Sprintf("vm.swappiness is %d (recommended <= 10 for database instances).", p.Swappiness),
+				RootCause:  "Default swappiness (60) causes kernel to swap anonymous memory pages to disk prematurely, causing latency spikes in transactional databases (PostgreSQL, MongoDB, Redis).",
+				RemedySteps: []string{
+					"Set runtime swappiness: sysctl -w vm.swappiness=1",
+					"Persist in /etc/sysctl.d/99-datastack.conf: echo 'vm.swappiness=1' >> /etc/sysctl.d/99-datastack.conf",
+				},
+				QuickFixCmd: "sysctl -w vm.swappiness=1",
+				Metadata:    map[string]string{"swappiness": strconv.FormatInt(p.Swappiness, 10)},
+			})
+		} else {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-002",
+				Title:      "vm.swappiness Tuned for Databases",
+				TargetType: model.TargetHost,
+				Category:   "Kernel Optimization",
+				Resource:   "sysctl:vm.swappiness",
+				Severity:   model.SeverityPass,
+				Symptom:    fmt.Sprintf("vm.swappiness is %d (<= 10).", p.Swappiness),
+			})
+		}
+	}
+
+	// 3. Transparent Hugepages (THP)
+	if p.THPEnabled != "" {
+		if strings.Contains(p.THPEnabled, "[always]") {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-003",
+				Title:      "Transparent Huge Pages (THP) Enabled",
+				TargetType: model.TargetHost,
+				Category:   "Memory Optimization",
+				Resource:   "kernel:transparent_hugepage",
+				Severity:   model.SeverityWarning,
+				Symptom:    "Transparent Huge Pages is set to [always].",
+				RootCause:  "THP allocation compaction creates severe latency spikes and memory fragmentation in databases (MongoDB, Redis, PostgreSQL).",
+				RemedySteps: []string{
+					"Disable runtime THP: echo never > /sys/kernel/mm/transparent_hugepage/enabled",
+					"Also disable defrag: echo never > /sys/kernel/mm/transparent_hugepage/defrag",
+					"Add transparent_hugepage=never to kernel boot parameters in GRUB",
+				},
+				QuickFixCmd: "echo never > /sys/kernel/mm/transparent_hugepage/enabled",
+			})
+		} else {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-003",
+				Title:      "Transparent Huge Pages Disabled or Controlled",
+				TargetType: model.TargetHost,
+				Category:   "Memory Optimization",
+				Resource:   "kernel:transparent_hugepage",
+				Severity:   model.SeverityPass,
+				Symptom:    fmt.Sprintf("THP setting is %s (not [always]).", strings.TrimSpace(p.THPEnabled)),
+			})
+		}
+	}
+
+	// 4. fs.file-max (open files limit)
+	if p.FileMax > 0 {
+		if p.FileMax < 65536 {
+			findings = append(findings, model.Finding{
+				ID:         "HOST-KRN-004",
+				Title:      "Low System File Descriptors Limit (file-max)",
+				TargetType: model.TargetHost,
+				Category:   "Kernel Optimization",
+				Resource:   "sysctl:fs.file-max",
+				Severity:   model.SeverityWarning,
+				Symptom:    fmt.Sprintf("fs.file-max is %d (expected >= 65536).", p.FileMax),
+				RootCause:  "System file-max is too low for high-volume database or socket connections.",
+				RemedySteps: []string{
+					"Set runtime file-max: sysctl -w fs.file-max=2097152",
+					"Persist in /etc/sysctl.d/99-datastack.conf",
+				},
+				QuickFixCmd: "sysctl -w fs.file-max=2097152",
+				Metadata:    map[string]string{"file_max": strconv.FormatInt(p.FileMax, 10)},
+			})
+		}
+	}
+
+	return findings
+}
+
+func (e *Engine) checkKernelDataStack() []model.Finding {
+	if e.profile != "data-stack" {
+		return nil
+	}
+
+	params := dataStackKernelParams{
+		Swappiness: -1,
+	}
+
+	if content, err := e.readProc("sys/vm/max_map_count"); err == nil {
+		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
+			params.MaxMapCount = v
+		}
+	}
+	if content, err := e.readProc("sys/vm/swappiness"); err == nil {
+		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
+			params.Swappiness = v
+		}
+	}
+	if content, err := e.readProc("sys/fs/file-max"); err == nil {
+		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
+			params.FileMax = v
+		}
+	}
+	if content, err := e.readSys("kernel/mm/transparent_hugepage/enabled"); err == nil {
+		params.THPEnabled = content
+	}
+
+	return evaluateDataStackKernel(params)
 }

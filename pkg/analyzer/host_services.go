@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,4 +150,117 @@ func evaluateFailedUnits(units []string) []model.Finding {
 	}
 
 	return findings
+}
+
+// -----------------------------------------------------------------------------
+// HOST-CLK-001 — clock synchronization / NTP status
+// -----------------------------------------------------------------------------
+
+func parseTimedatectlSync(output string) (synced bool, found bool) {
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "NTPSynchronized=") {
+			val := strings.ToLower(strings.TrimPrefix(trimmed, "NTPSynchronized="))
+			return val == "yes" || val == "1" || val == "true", true
+		}
+		if strings.Contains(trimmed, "System clock synchronized:") {
+			val := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(trimmed, "System clock synchronized:")))
+			return strings.HasPrefix(val, "yes"), true
+		}
+	}
+	return false, false
+}
+
+func parseChronycTracking(output string) (synced bool, found bool) {
+	hasLeapNormal := false
+	hasValidStratum := false
+	for _, line := range strings.Split(output, "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "leap status") {
+			if strings.Contains(lower, "normal") {
+				hasLeapNormal = true
+			}
+		}
+		if strings.Contains(lower, "stratum") {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 2 {
+				if s, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && s > 0 && s < 16 {
+					hasValidStratum = true
+				}
+			}
+		}
+	}
+	if hasLeapNormal && hasValidStratum {
+		return true, true
+	}
+	if strings.Contains(strings.ToLower(output), "not synchronised") {
+		return false, true
+	}
+	return false, false
+}
+
+func evaluateClockSync(synced bool, source string) []model.Finding {
+	if synced {
+		return []model.Finding{{
+			ID:         "HOST-CLK-001",
+			Title:      "Host Clock Synchronized",
+			TargetType: model.TargetHost,
+			Category:   "Time Synchronization",
+			Resource:   "clock:" + source,
+			Severity:   model.SeverityPass,
+			Symptom:    fmt.Sprintf("System clock is synchronized with NTP (%s).", source),
+		}}
+	}
+
+	return []model.Finding{{
+		ID:         "HOST-CLK-001",
+		Title:      "Host Clock Not Synchronized",
+		TargetType: model.TargetHost,
+		Category:   "Time Synchronization",
+		Resource:   "clock:" + source,
+		Severity:   model.SeverityCritical,
+		Symptom:    fmt.Sprintf("Host clock is not synchronized with NTP (%s). Time drift causes database consistency errors, transaction sequencing failures, and token expiration bugs.", source),
+		RootCause:  "NTP synchronization daemon (systemd-timesyncd or chrony) is inactive, disabled, or failing upstream synchronization.",
+		RemedySteps: []string{
+			"Enable and start systemd-timesyncd: systemctl enable --now systemd-timesyncd",
+			"Or install and verify chrony: apt-get install -y chrony && systemctl start chrony && chronyc tracking",
+			"Check UDP port 123 outbound network reachability to NTP servers",
+		},
+		QuickFixCmd: "systemctl restart systemd-timesyncd",
+	}}
+}
+
+func (e *Engine) checkClockSync(ctx context.Context) []model.Finding {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+
+	// 1. Try timedatectl
+	if e.run.Available("timedatectl") {
+		out, err := e.run.Run(ctx, 5*time.Second, "timedatectl", "show", "--property=NTPSynchronized")
+		if err == nil {
+			if synced, ok := parseTimedatectlSync(string(out)); ok {
+				return evaluateClockSync(synced, "systemd-timesyncd")
+			}
+		}
+		// Fallback to timedatectl status
+		out, err = e.run.Run(ctx, 5*time.Second, "timedatectl", "status")
+		if err == nil {
+			if synced, ok := parseTimedatectlSync(string(out)); ok {
+				return evaluateClockSync(synced, "timedatectl")
+			}
+		}
+	}
+
+	// 2. Try chronyc
+	if e.run.Available("chronyc") {
+		out, err := e.run.Run(ctx, 5*time.Second, "chronyc", "tracking")
+		if err == nil {
+			if synced, ok := parseChronycTracking(string(out)); ok {
+				return evaluateClockSync(synced, "chrony")
+			}
+		}
+	}
+
+	return nil
 }

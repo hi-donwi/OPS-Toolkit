@@ -146,3 +146,31 @@ func TestEvaluateRBACWildcards(t *testing.T) {
 		t.Errorf("severity = %s, want CRITICAL", findings[0].Severity)
 	}
 }
+
+func TestEvaluateShadowFilePermissions(t *testing.T) {
+	shadowDef := sensitiveFile{Path: "/etc/shadow", ForbiddenBits: 0o037, Expected: "0640 or stricter"}
+
+	// 0640 (standard Debian/Ubuntu root:shadow) should PASS
+	f640 := evaluateSingleFilePermission(shadowDef, 0o640)
+	if f640.Severity != model.SeverityPass {
+		t.Errorf("mode 0640 severity = %s, want PASS", f640.Severity)
+	}
+
+	// 0600 (standard RHEL/CentOS root:root) should PASS
+	f600 := evaluateSingleFilePermission(shadowDef, 0o600)
+	if f600.Severity != model.SeverityPass {
+		t.Errorf("mode 0600 severity = %s, want PASS", f600.Severity)
+	}
+
+	// 0644 (world readable) must be CRITICAL
+	f644 := evaluateSingleFilePermission(shadowDef, 0o644)
+	if f644.Severity != model.SeverityCritical {
+		t.Errorf("mode 0644 severity = %s, want CRITICAL", f644.Severity)
+	}
+
+	// 0660 (group writable) must be CRITICAL
+	f660 := evaluateSingleFilePermission(shadowDef, 0o660)
+	if f660.Severity != model.SeverityCritical {
+		t.Errorf("mode 0660 severity = %s, want CRITICAL", f660.Severity)
+	}
+}
