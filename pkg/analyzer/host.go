@@ -49,6 +49,7 @@ func (e *Engine) evaluateHost(ctx context.Context) []model.Finding {
 
 	findings = append(findings, e.checkClockSync(ctx)...)
 	findings = append(findings, e.checkKernelDataStack()...)
+	findings = append(findings, e.checkDataServices(ctx)...)
 
 	return findings
 }

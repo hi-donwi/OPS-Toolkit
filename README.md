@@ -33,6 +33,21 @@ Summary:  2 CRITICAL, 1 WARNING, 14 PASS
 
 ## What it checks
 
+Set `OPSKIT_DOCKER_CONTEXT` or `OPSKIT_KUBE_CONTEXT` to pin a target. Otherwise the
+current ambient context is used. Optional read-only data probes run only when
+requested: `OPSKIT_MONGO_URI` and `OPSKIT_REDIS_ADDR=host:port` (IPv6 uses
+`[address]:port`). `mongosh --nodb --norc` connects explicitly from the environment,
+not from an ambient localhost connection or shell startup script. Credentials are
+not put in its arguments. `OPSKIT_REDIS_PASSWORD` overrides `REDISCLI_AUTH` without
+being printed; `OPSKIT_REDIS_USER` selects an ACL user. For verified Redis TLS,
+set `OPSKIT_REDIS_TLS=1` and optionally `OPSKIT_REDIS_CA` to a CA certificate.
+
+These opt-in probes require `mongosh` or `redis-cli`. They check a member's role
+and basic link state, not quorum, Sentinel/Cluster failover, replay completeness,
+or backup restoration. A non-serving MongoDB member, unsupported Redis role, or
+primary without replicas is not reported as healthy. Do not use these probes as
+an HA certificate.
+
 **Linux host.** Kernel OOM-killer kills (parsed out of `dmesg` and grouped by
 victim process), memory and swap pressure, CPU run queue against core count,
 disk and inode exhaustion, filesystems the kernel has remounted read-only,
@@ -168,10 +183,13 @@ opskit verify --fail-on warning -n production
 |---|---|
 | `0` | Nothing at or above the threshold |
 | `1` | Threshold breached |
-| `2` | The run itself failed — cancelled, timed out, or errored |
+| `2` | The run failed, collection is incomplete, or no checks ran |
 
 An unrecognised `--fail-on` value is rejected rather than quietly treated as
 `critical`.
+
+Collection errors fail the gate even at `--fail-on critical`. Reports include
+`collection_errors`; JSON output keeps human gate messages on stderr.
 
 ### Export metrics
 
