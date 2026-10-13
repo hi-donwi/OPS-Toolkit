@@ -542,3 +542,27 @@ func TestEvaluateDataStackKernel(t *testing.T) {
 		}
 	}
 }
+
+func TestDataStackProfileReportsUnreadableKernelInputs(t *testing.T) {
+	procRoot := newFixtureProc(t, map[string]string{
+		"sys/vm/max_map_count": "not-a-number\n",
+	})
+	sysRoot := newFixtureProc(t, map[string]string{
+		"kernel/mm/transparent_hugepage/enabled": "always madvise never\n",
+	})
+	engine := NewEngine(model.EnvironmentContext{},
+		WithProfile("data-stack"), WithProcRoot(procRoot), WithSysRoot(sysRoot))
+
+	finding, ok := findByID(engine.checkKernelDataStack(), "HOST-KRN-000")
+	if !ok {
+		t.Fatal("missing HOST-KRN-000 for unreadable kernel inputs")
+	}
+	if finding.Severity != model.SeverityWarning {
+		t.Fatalf("severity = %s, want WARNING", finding.Severity)
+	}
+	for _, input := range []string{"vm.max_map_count", "vm.swappiness", "fs.file-max", "transparent_hugepage"} {
+		if !strings.Contains(finding.RootCause, input) {
+			t.Errorf("root cause %q does not name %s", finding.RootCause, input)
+		}
+	}
+}

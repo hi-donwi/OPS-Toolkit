@@ -685,23 +685,51 @@ func (e *Engine) checkKernelDataStack() []model.Finding {
 		Swappiness: -1,
 	}
 
-	if content, err := e.readProc("sys/vm/max_map_count"); err == nil {
-		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
-			params.MaxMapCount = v
-		}
+	var unavailable []string
+	if content, err := e.readProc("sys/vm/max_map_count"); err != nil {
+		unavailable = append(unavailable, "vm.max_map_count")
+	} else if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err != nil || v <= 0 {
+		unavailable = append(unavailable, "vm.max_map_count")
+	} else {
+		params.MaxMapCount = v
 	}
-	if content, err := e.readProc("sys/vm/swappiness"); err == nil {
-		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
-			params.Swappiness = v
-		}
+	if content, err := e.readProc("sys/vm/swappiness"); err != nil {
+		unavailable = append(unavailable, "vm.swappiness")
+	} else if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err != nil || v < 0 {
+		unavailable = append(unavailable, "vm.swappiness")
+	} else {
+		params.Swappiness = v
 	}
-	if content, err := e.readProc("sys/fs/file-max"); err == nil {
-		if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err == nil {
-			params.FileMax = v
-		}
+	if content, err := e.readProc("sys/fs/file-max"); err != nil {
+		unavailable = append(unavailable, "fs.file-max")
+	} else if v, err := strconv.ParseInt(strings.TrimSpace(content), 10, 64); err != nil || v <= 0 {
+		unavailable = append(unavailable, "fs.file-max")
+	} else {
+		params.FileMax = v
 	}
-	if content, err := e.readSys("kernel/mm/transparent_hugepage/enabled"); err == nil {
+	if content, err := e.readSys("kernel/mm/transparent_hugepage/enabled"); err != nil {
+		unavailable = append(unavailable, "transparent_hugepage")
+	} else if !strings.Contains(content, "[always]") && !strings.Contains(content, "[madvise]") && !strings.Contains(content, "[never]") {
+		unavailable = append(unavailable, "transparent_hugepage")
+	} else {
 		params.THPEnabled = content
+	}
+	if len(unavailable) > 0 {
+		return append(evaluateDataStackKernel(params), model.Finding{
+			ID:         "HOST-KRN-000",
+			Title:      "Data-Stack Kernel Inputs Unavailable",
+			TargetType: model.TargetHost,
+			Category:   "Kernel Optimization",
+			Resource:   "sysctl:data-stack",
+			Severity:   model.SeverityWarning,
+			Symptom:    "One or more required kernel inputs could not be read or parsed.",
+			Metadata:   map[string]string{"collection_error": "true"},
+			RootCause:  "Missing or malformed procfs/sysfs input: " + strings.Join(unavailable, ", ") + ".",
+			RemedySteps: []string{
+				"Verify the host procfs and sysfs mounts and permissions",
+				"Retry with OPSKIT_PROC_ROOT and OPSKIT_SYS_ROOT pointed at the host filesystems",
+			},
+		})
 	}
 
 	return evaluateDataStackKernel(params)
