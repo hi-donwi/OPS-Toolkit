@@ -24,9 +24,11 @@ func Detect() model.EnvironmentContext {
 		Kernel:   detectKernel(),
 	}
 
-	// 1. Check for Systemd
-	if _, err := os.Stat("/run/systemd/system"); err == nil {
-		ctx.HasSystemd = true
+	// 1. Check for Systemd (Linux only)
+	if runtime.GOOS == "linux" {
+		if _, err := os.Stat("/run/systemd/system"); err == nil {
+			ctx.HasSystemd = true
+		}
 	}
 
 	// 2. Check for Docker & Swarm
@@ -85,41 +87,79 @@ func detectKernel() string {
 	return "unknown"
 }
 
-func detectDockerAndSwarm() (bool, bool) {
-	dockerSocket := "/var/run/docker.sock"
-	if _, err := os.Stat(dockerSocket); err != nil {
-		return false, false
-	}
+func candidateDockerSockets() []string {
+	var sockets []string
 
-	// Try pinging Docker Socket via HTTP Unix domain socket
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(proto, addr string) (net.Conn, error) {
-				return net.DialTimeout("unix", dockerSocket, 1*time.Second)
-			},
-		},
-		Timeout: 2 * time.Second,
-	}
-
-	resp, err := client.Get("http://localhost/info")
-	if err != nil {
-		// Socket file exists but daemon not responsive or permission denied
-		return true, false
-	}
-	defer resp.Body.Close()
-
-	var isSwarm bool
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Simple string search for swarm active state in /info JSON
-		if strings.Contains(line, `"LocalNodeState":"active"`) || strings.Contains(line, `"Swarm":{"NodeID"`) {
-			isSwarm = true
-			break
+	// 1. DOCKER_HOST env
+	if env := os.Getenv("DOCKER_HOST"); strings.HasPrefix(env, "unix://") {
+		sock := strings.TrimPrefix(env, "unix://")
+		if sock != "" {
+			sockets = append(sockets, sock)
 		}
 	}
 
-	return true, isSwarm
+	// 2. Default standard path
+	sockets = append(sockets, "/var/run/docker.sock")
+
+	// 3. User socket on macOS (Docker Desktop) or rootless Docker
+	if home, err := os.UserHomeDir(); err == nil {
+		sockets = append(sockets, filepath.Join(home, ".docker", "run", "docker.sock"))
+	}
+
+	// 4. Linux rootless runtime dir
+	if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
+		sockets = append(sockets, filepath.Join(xdg, "docker.sock"))
+	}
+
+	return sockets
+}
+
+func detectDockerAndSwarm() (bool, bool) {
+	candidates := candidateDockerSockets()
+	var socketFound bool
+
+	for _, sock := range candidates {
+		if _, err := os.Stat(sock); err != nil {
+			continue
+		}
+		socketFound = true
+
+		// Try pinging Docker Socket via HTTP Unix domain socket
+		client := &http.Client{
+			Transport: &http.Transport{
+				Dial: func(proto, addr string) (net.Conn, error) {
+					return net.DialTimeout("unix", sock, 1*time.Second)
+				},
+			},
+			Timeout: 2 * time.Second,
+		}
+
+		resp, err := client.Get("http://localhost/info")
+		if err != nil {
+			// Socket exists but not responsive on this candidate; check next candidate
+			continue
+		}
+		defer resp.Body.Close()
+
+		var isSwarm bool
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Simple string search for swarm active state in /info JSON
+			if strings.Contains(line, `"LocalNodeState":"active"`) || strings.Contains(line, `"Swarm":{"NodeID"`) {
+				isSwarm = true
+				break
+			}
+		}
+
+		return true, isSwarm
+	}
+
+	if socketFound {
+		return true, false
+	}
+
+	return false, false
 }
 
 func detectKubernetes() bool {

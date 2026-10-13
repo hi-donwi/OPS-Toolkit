@@ -1,6 +1,7 @@
 package detector
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -15,5 +16,25 @@ func TestDetect(t *testing.T) {
 	}
 	if len(ctx.ActiveTargets) == 0 {
 		t.Errorf("Expected at least one active target, got 0")
+	}
+	if runtime.GOOS == "darwin" && ctx.HasSystemd {
+		t.Errorf("HasSystemd should be false on macOS")
+	}
+}
+
+func TestCandidateDockerSockets(t *testing.T) {
+	candidates := candidateDockerSockets()
+	if len(candidates) < 2 {
+		t.Fatalf("expected at least 2 candidate sockets, got %d", len(candidates))
+	}
+	foundVarRun := false
+	for _, c := range candidates {
+		if c == "/var/run/docker.sock" {
+			foundVarRun = true
+			break
+		}
+	}
+	if !foundVarRun {
+		t.Errorf("expected /var/run/docker.sock in candidates: %v", candidates)
 	}
 }
