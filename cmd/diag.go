@@ -14,6 +14,7 @@ import (
 var (
 	diagNamespace string
 	diagShowPass  bool
+	diagStrict    bool
 )
 
 var diagCmd = &cobra.Command{
@@ -72,6 +73,7 @@ func init() {
 	diagK8sCmd.Flags().StringVarP(&diagNamespace, "namespace", "n", "", "Target Kubernetes namespace (defaults to all namespaces)")
 	diagCmd.Flags().StringVarP(&diagNamespace, "namespace", "n", "", "Target Kubernetes namespace (if K8s active)")
 	diagCmd.PersistentFlags().BoolVar(&diagShowPass, "show-pass", false, "Display passed diagnostic checks in console output")
+	diagCmd.PersistentFlags().BoolVar(&diagStrict, "strict", false, "Exit with code 3 if zero diagnostic checks executed")
 
 	diagCmd.AddCommand(diagHostCmd)
 	diagCmd.AddCommand(diagDockerCmd)
@@ -80,6 +82,13 @@ func init() {
 	diagCmd.AddCommand(diagSecCmd)
 
 	RootCmd.AddCommand(diagCmd)
+}
+
+func checkStrictExit(checksExecuted int, strict bool) error {
+	if strict && checksExecuted == 0 {
+		return &ExitError{Code: 3, Msg: "no diagnostic checks executed"}
+	}
+	return nil
 }
 
 func runDiagnostics(targetFilter model.TargetType) error {
@@ -107,9 +116,16 @@ func runDiagnostics(targetFilter model.TargetType) error {
 	}
 
 	if JSONOutput {
-		return report.PrintJSON(os.Stdout, rep)
+		if err := report.PrintJSON(os.Stdout, rep); err != nil {
+			return err
+		}
+	} else {
+		report.PrintConsoleDetailed(os.Stdout, rep, NoColor, diagShowPass)
 	}
 
-	report.PrintConsoleDetailed(os.Stdout, rep, NoColor, diagShowPass)
+	if err := checkStrictExit(rep.ChecksExecuted, diagStrict); err != nil {
+		return err
+	}
+
 	return nil
 }
