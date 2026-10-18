@@ -191,6 +191,33 @@ An unrecognised `--fail-on` value is rejected rather than quietly treated as
 Collection errors fail the gate even at `--fail-on critical`. Reports include
 `collection_errors`; JSON output keeps human gate messages on stderr.
 
+Verify a saved report locally without running any collectors or remediation:
+
+```bash
+opskit diag host --strict --json > host.json
+opskit verify --report host.json --target host --fail-on warning \
+  --require-rule HOST-DSK-001 --require-rule HOST-MEM-002
+```
+
+`--report -` reads stdin. Input must be a single JSON report of at most 16 MiB,
+with explicit `checks_executed`, `collection_errors`, `summary`, and `findings`.
+Empty coverage, collection failures, unknown severities/targets, missing rule IDs,
+inconsistent counters, and malformed input return exit 2. A requested output file
+that cannot be saved also returns exit 2, including in live verification mode.
+
+In report mode, `--target` and `--namespace` require evidence in that scope; they
+do not filter away other findings. Repeat `--require-rule` to require specific
+rule IDs in the requested scope. Severity policy applies to the entire report.
+Rule requirements need `--report`; live collection is unchanged. Invalid flags,
+thresholds/targets, and unexpected positional arguments return operational exit 2.
+When piping collectors into verification, enable shell `pipefail` so an upstream
+failure cannot be hidden by a downstream success.
+
+A saved report is evidence from its recorded collection time, not a fresh probe
+or an authenticity guarantee. Preserve its source identity, timestamp, and digest.
+Positive finding counts alone do not prove that every possible rule ran; declare
+the rule coverage required by your acceptance scenario explicitly.
+
 ### Export metrics
 
 ```bash

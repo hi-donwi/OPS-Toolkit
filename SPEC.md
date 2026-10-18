@@ -76,6 +76,8 @@ type Report struct {
     Timestamp    time.Time          `json:"timestamp"`
     Duration     string             `json:"duration"`
     Environment  EnvironmentContext `json:"environment"`
+    ChecksExecuted int              `json:"checks_executed"`
+    CollectionErrors int            `json:"collection_errors"`
     Summary      Summary            `json:"summary"`
     Findings     []Finding          `json:"findings"`
 }
@@ -87,6 +89,19 @@ type Summary struct {
     Pass     int `json:"pass"`
 }
 ```
+
+`checks_executed` counts findings, including PASS findings, rather than all possible
+rules. `collection_errors` counts findings marked with
+`metadata.collection_error == "true"`. Saved-report verification requires both
+fields explicitly, rejects collection failures and inconsistent counts/summary,
+and applies the existing severity thresholds. `verify --report FILE` (or `-` for
+stdin) performs no environment detection or collection. Required target,
+namespace, and repeatable `--require-rule` constraints describe minimum evidence;
+they do not remove other findings from the report's policy decision. Malformed,
+incomplete, oversized (over 16 MiB), or unsavable reports exit 2; policy breaches
+exit 1, and accepted reports exit 0. Report integrity and freshness are the
+operator's responsibility. Unexpected positional arguments and flag parsing errors
+are operational failures (exit 2), not passing gates or severity breaches.
 
 ---
 
