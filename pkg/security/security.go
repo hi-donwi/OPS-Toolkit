@@ -29,25 +29,36 @@ type sshSettings struct {
 	permitRootSet bool
 	passwordAuth  string
 	passwordSet   bool
-	unreadable    bool
 }
 
 func auditSSHConfigFile(configPath string) []model.Finding {
 	findings := make([]model.Finding, 0)
 	settings := sshSettings{}
-	if err := parseSSHFile(configPath, filepath.Dir(configPath), &settings, 0); err != nil && !settings.permitRootSet && !settings.passwordSet {
-		return findings
+	if err := parseSSHFile(configPath, filepath.Dir(configPath), &settings, 0); err != nil {
+		return []model.Finding{{
+			ID:         "SEC-SSH-COL-001",
+			Title:      "SSH Configuration Inspection Incomplete",
+			TargetType: model.TargetSecurity,
+			Category:   "Collection",
+			Resource:   "file:" + configPath,
+			Severity:   model.SeverityWarning,
+			Symptom:    fmt.Sprintf("Cannot verify SSH authentication policy: %v", err),
+			RootCause:  "Unreadable or unsupported configuration cannot establish a safe effective policy.",
+			RemedySteps: []string{
+				"Use an authorized read-only account that can inspect all included configuration files",
+				"For Match blocks, inspect effective settings with sshd -T -C for the relevant connection",
+			},
+			Metadata: map[string]string{"collection_error": "true"},
+		}}
 	}
 
 	permitRoot := "prohibit-password"
 	if settings.permitRootSet {
 		permitRoot = settings.permitRoot
 	}
-	passwordAuth := ""
+	passwordAuth := "yes"
 	if settings.passwordSet {
 		passwordAuth = settings.passwordAuth
-	} else if !settings.unreadable {
-		passwordAuth = "yes"
 	}
 
 	if permitRoot == "yes" {
@@ -109,29 +120,52 @@ func parseSSHFile(path, base string, settings *sshSettings, depth int) error {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		key := strings.ToLower(fields[0])
+		if strings.Contains(key, "=") {
+			return fmt.Errorf("alternate SSH directive syntax requires effective inspection")
+		}
+		if key == "match" {
+			return fmt.Errorf("conditional Match policy requires connection-specific inspection")
+		}
+		if key != "include" && key != "permitrootlogin" && key != "passwordauthentication" {
 			continue
 		}
-		key := strings.ToLower(fields[0])
-		if key == "match" {
-			break
+		if len(fields) < 2 {
+			return fmt.Errorf("missing argument for %s", key)
 		}
 		if key == "include" {
 			for _, pattern := range fields[1:] {
+				if strings.HasPrefix(pattern, "#") {
+					break
+				}
+				if strings.ContainsAny(pattern, "\"'") {
+					return fmt.Errorf("quoted Include requires effective sshd inspection")
+				}
 				if err := parseSSHInclude(pattern, base, settings, depth); err != nil {
 					return err
 				}
 			}
 			continue
 		}
+		if len(fields) > 2 && !strings.HasPrefix(fields[2], "#") {
+			return fmt.Errorf("unexpected arguments for %s", key)
+		}
 		val := strings.ToLower(fields[1])
 		switch key {
 		case "permitrootlogin":
+			switch val {
+			case "yes", "no", "prohibit-password", "without-password", "forced-commands-only":
+			default:
+				return fmt.Errorf("unsupported PermitRootLogin value")
+			}
 			if !settings.permitRootSet {
 				settings.permitRoot = val
 				settings.permitRootSet = true
 			}
 		case "passwordauthentication":
+			if val != "yes" && val != "no" {
+				return fmt.Errorf("unsupported PasswordAuthentication value")
+			}
 			if !settings.passwordSet {
 				settings.passwordAuth = val
 				settings.passwordSet = true
@@ -153,14 +187,13 @@ func parseSSHInclude(pattern, base string, settings *sshSettings, depth int) err
 	for _, match := range matches {
 		info, err := os.Stat(match)
 		if err != nil {
-			settings.unreadable = true
-			continue
+			return err
 		}
 		if info.IsDir() {
-			continue
+			return fmt.Errorf("SSH Include is a directory")
 		}
 		if err := parseSSHFile(match, base, settings, depth+1); err != nil {
-			settings.unreadable = true
+			return err
 		}
 	}
 	return nil
