@@ -22,6 +22,17 @@ func TestDetect(t *testing.T) {
 	}
 }
 
+func TestDockerInfoInactiveSwarmIsNotActive(t *testing.T) {
+	inactive := `{"Swarm":{"NodeID":"","NodeAddr":"","LocalNodeState":"inactive","ControlAvailable":false}}`
+	if dockerInfoSwarmActive(inactive) {
+		t.Fatal("an inactive Swarm object must not be treated as an active swarm")
+	}
+	active := `{"Swarm":{"NodeID":"abc","LocalNodeState":"active","ControlAvailable":true}}`
+	if !dockerInfoSwarmActive(active) {
+		t.Fatal("LocalNodeState active must be treated as an active swarm")
+	}
+}
+
 func TestCandidateDockerSockets(t *testing.T) {
 	candidates := candidateDockerSockets()
 	if len(candidates) < 2 {

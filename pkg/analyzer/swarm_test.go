@@ -1,10 +1,13 @@
 package analyzer
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/hi-donwi/OPS-Toolkit/pkg/model"
+	"github.com/hi-donwi/OPS-Toolkit/pkg/sysexec"
 )
 
 func TestParseSwarmServicesAndReplicas(t *testing.T) {
@@ -25,6 +28,42 @@ func TestParseSwarmServicesAndReplicas(t *testing.T) {
 	running, desired, ok = services[2].ReplicaCounts()
 	if !ok || running != 5 || desired != 5 {
 		t.Errorf("global service replicas = %d/%d, want 5/5", running, desired)
+	}
+}
+
+func TestInactiveSwarmIsNotReportedAsWorker(t *testing.T) {
+	fake := &sysexec.Fake{Errors: map[string]error{
+		"docker service ls": errors.New(`This node is not a swarm manager. Use "docker swarm init" or "docker swarm join" to connect this node to swarm and try again.`),
+	}}
+	env := model.EnvironmentContext{IsDockerSwarm: true, ActiveTargets: []model.TargetType{model.TargetSwarm}}
+	rep, err := NewEngine(env, WithRunner(fake)).RunDiagnostics(context.Background(), model.TargetSwarm, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, finding := range rep.Findings {
+		if finding.ID == "SWM-WRK-001" {
+			t.Fatalf("inactive node classified as worker: %+v", finding)
+		}
+	}
+}
+
+func TestSwarmWorkerIsStillClassified(t *testing.T) {
+	fake := &sysexec.Fake{Errors: map[string]error{
+		"docker service ls": errors.New("This node is not a swarm manager. Worker nodes can't be used to view or modify cluster state."),
+	}}
+	env := model.EnvironmentContext{IsDockerSwarm: true, ActiveTargets: []model.TargetType{model.TargetSwarm}}
+	rep, err := NewEngine(env, WithRunner(fake)).RunDiagnostics(context.Background(), model.TargetSwarm, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, finding := range rep.Findings {
+		if finding.ID == "SWM-WRK-001" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("worker node was not classified as SWM-WRK-001")
 	}
 }
 

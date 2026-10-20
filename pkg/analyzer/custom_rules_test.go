@@ -31,6 +31,13 @@ conditions:
   file_exists: "/bin/sh"
 `)
 	writeRule(t, dir, "notes.txt", "ignored, not a yaml file")
+	writeRule(t, dir, "sample.yaml.example", `
+id: "EXAMPLE-NOT-LOADED"
+title: "Example"
+target: "HOST"
+conditions:
+  file_exists: "/bin/sh"
+`)
 
 	rules, err := LoadCustomRules(dir)
 	if err != nil {

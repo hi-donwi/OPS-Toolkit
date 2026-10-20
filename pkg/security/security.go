@@ -6,7 +6,9 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,35 +21,33 @@ func AuditSSHConfig() []model.Finding {
 	if runtime.GOOS != "linux" {
 		return findings
 	}
+	return auditSSHConfigFile("/etc/ssh/sshd_config")
+}
 
-	configPath := "/etc/ssh/sshd_config"
-	f, err := os.Open(configPath)
-	if err != nil {
+type sshSettings struct {
+	permitRoot    string
+	permitRootSet bool
+	passwordAuth  string
+	passwordSet   bool
+	unreadable    bool
+}
+
+func auditSSHConfigFile(configPath string) []model.Finding {
+	findings := make([]model.Finding, 0)
+	settings := sshSettings{}
+	if err := parseSSHFile(configPath, filepath.Dir(configPath), &settings, 0); err != nil && !settings.permitRootSet && !settings.passwordSet {
 		return findings
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	permitRoot := "prohibit-password" // default on modern distros
-	passwordAuth := "yes"
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "#") || len(line) == 0 {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		if len(fields) >= 2 {
-			key := strings.ToLower(fields[0])
-			val := strings.ToLower(fields[1])
-
-			if key == "permitrootlogin" {
-				permitRoot = val
-			} else if key == "passwordauthentication" {
-				passwordAuth = val
-			}
-		}
+	permitRoot := "prohibit-password"
+	if settings.permitRootSet {
+		permitRoot = settings.permitRoot
+	}
+	passwordAuth := ""
+	if settings.passwordSet {
+		passwordAuth = settings.passwordAuth
+	} else if !settings.unreadable {
+		passwordAuth = "yes"
 	}
 
 	if permitRoot == "yes" {
@@ -90,6 +90,80 @@ func AuditSSHConfig() []model.Finding {
 	}
 
 	return findings
+}
+
+func parseSSHFile(path, base string, settings *sshSettings, depth int) error {
+	if depth > 8 {
+		return fmt.Errorf("ssh config include depth exceeded")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		key := strings.ToLower(fields[0])
+		if key == "match" {
+			break
+		}
+		if key == "include" {
+			for _, pattern := range fields[1:] {
+				if err := parseSSHInclude(pattern, base, settings, depth); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		val := strings.ToLower(fields[1])
+		switch key {
+		case "permitrootlogin":
+			if !settings.permitRootSet {
+				settings.permitRoot = val
+				settings.permitRootSet = true
+			}
+		case "passwordauthentication":
+			if !settings.passwordSet {
+				settings.passwordAuth = val
+				settings.passwordSet = true
+			}
+		}
+	}
+	return scanner.Err()
+}
+
+func parseSSHInclude(pattern, base string, settings *sshSettings, depth int) error {
+	if !filepath.IsAbs(pattern) {
+		pattern = filepath.Join(base, pattern)
+	}
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+	sort.Strings(matches)
+	for _, match := range matches {
+		info, err := os.Stat(match)
+		if err != nil {
+			settings.unreadable = true
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+		if err := parseSSHFile(match, base, settings, depth+1); err != nil {
+			settings.unreadable = true
+		}
+	}
+	return nil
 }
 
 // AuditExposedPorts probes whether unauthenticated or sensitive internal services are exposed on external interfaces.
