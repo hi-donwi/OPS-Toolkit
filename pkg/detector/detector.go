@@ -2,6 +2,8 @@ package detector
 
 import (
 	"bufio"
+	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -141,12 +143,8 @@ func detectDockerAndSwarm() (bool, bool) {
 		}
 		defer resp.Body.Close()
 
-		var body strings.Builder
-		scanner := bufio.NewScanner(resp.Body)
-		for scanner.Scan() {
-			body.WriteString(scanner.Text())
-		}
-		isSwarm := dockerInfoSwarmActive(body.String())
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+		isSwarm := err == nil && resp.StatusCode == http.StatusOK && dockerInfoSwarmActive(string(body))
 
 		return true, isSwarm
 	}
@@ -162,8 +160,12 @@ func detectDockerAndSwarm() (bool, bool) {
 // joined a swarm. Docker includes a Swarm object with a NodeID even when
 // LocalNodeState is inactive, so the object alone is not membership.
 func dockerInfoSwarmActive(body string) bool {
-	compact := strings.ReplaceAll(body, " ", "")
-	return strings.Contains(compact, `"LocalNodeState":"active"`)
+	var info struct {
+		Swarm struct {
+			LocalNodeState string
+		}
+	}
+	return json.Unmarshal([]byte(body), &info) == nil && info.Swarm.LocalNodeState == "active"
 }
 
 func detectKubernetes() bool {
