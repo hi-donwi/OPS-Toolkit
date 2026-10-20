@@ -99,6 +99,37 @@ func parseSwarmNodes(output string) []swarmNode {
 }
 
 // fieldAt returns the field at idx, or "" when the row is short.
+// swarmAccessKind distinguishes a real worker from a node that has not joined
+// a swarm. Both errors contain "not a swarm manager"; only the worker error
+// names worker nodes.
+func swarmAccessKind(text string) string {
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "worker nodes") {
+		return "worker"
+	}
+	if strings.Contains(lower, "not a swarm manager") {
+		return "inactive"
+	}
+	return ""
+}
+
+func swarmWorkerFinding() model.Finding {
+	return model.Finding{
+		ID:         "SWM-WRK-001",
+		Title:      "Docker Swarm Worker Node",
+		TargetType: model.TargetSwarm,
+		Category:   "Swarm Role",
+		Resource:   "swarm:worker",
+		Severity:   model.SeverityInfo,
+		Symptom:    "This node is a Swarm worker node. Cluster-wide service and node state queries require a manager node.",
+		RootCause:  "Worker nodes execute container tasks but do not participate in the Swarm Raft consensus store or manage cluster-wide service definitions.",
+		RemedySteps: []string{
+			"Run 'opskit diag swarm' from a Swarm manager node to inspect cluster services and task placements",
+			"Run 'opskit diag docker' on this worker node to inspect its local running containers and health probes",
+		},
+	}
+}
+
 func fieldAt(fields []string, idx int) string {
 	if idx < len(fields) {
 		return fields[idx]
@@ -117,21 +148,13 @@ func (e *Engine) evaluateSwarm(ctx context.Context) []model.Finding {
 
 	svcOut, err := e.run.Run(ctx, 20*time.Second, "docker", "service", "ls",
 		"--format", "{{.ID}}\t{{.Name}}\t{{.Mode}}\t{{.Replicas}}\t{{.Image}}")
-	if err != nil && (strings.Contains(err.Error(), "not a swarm manager") || strings.Contains(string(svcOut), "not a swarm manager")) {
-		return []model.Finding{{
-			ID:         "SWM-WRK-001",
-			Title:      "Docker Swarm Worker Node",
-			TargetType: model.TargetSwarm,
-			Category:   "Swarm Role",
-			Resource:   "swarm:worker",
-			Severity:   model.SeverityInfo,
-			Symptom:    "This node is a Swarm worker node. Cluster-wide service and node state queries require a manager node.",
-			RootCause:  "Worker nodes execute container tasks but do not participate in the Swarm Raft consensus store or manage cluster-wide service definitions.",
-			RemedySteps: []string{
-				"Run 'opskit diag swarm' from a Swarm manager node to inspect cluster services and task placements",
-				"Run 'opskit diag docker' on this worker node to inspect its local running containers and health probes",
-			},
-		}}
+	if err != nil {
+		switch swarmAccessKind(err.Error() + "\n" + string(svcOut)) {
+		case "worker":
+			return []model.Finding{swarmWorkerFinding()}
+		case "inactive":
+			return nil
+		}
 	}
 	if err != nil {
 		collectionErr = errors.Join(collectionErr, err)

@@ -141,16 +141,12 @@ func detectDockerAndSwarm() (bool, bool) {
 		}
 		defer resp.Body.Close()
 
-		var isSwarm bool
+		var body strings.Builder
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
-			line := scanner.Text()
-			// Simple string search for swarm active state in /info JSON
-			if strings.Contains(line, `"LocalNodeState":"active"`) || strings.Contains(line, `"Swarm":{"NodeID"`) {
-				isSwarm = true
-				break
-			}
+			body.WriteString(scanner.Text())
 		}
+		isSwarm := dockerInfoSwarmActive(body.String())
 
 		return true, isSwarm
 	}
@@ -160,6 +156,14 @@ func detectDockerAndSwarm() (bool, bool) {
 	}
 
 	return false, false
+}
+
+// dockerInfoSwarmActive reports whether Docker /info describes a node that has
+// joined a swarm. Docker includes a Swarm object with a NodeID even when
+// LocalNodeState is inactive, so the object alone is not membership.
+func dockerInfoSwarmActive(body string) bool {
+	compact := strings.ReplaceAll(body, " ", "")
+	return strings.Contains(compact, `"LocalNodeState":"active"`)
 }
 
 func detectKubernetes() bool {

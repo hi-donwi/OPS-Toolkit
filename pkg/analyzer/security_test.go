@@ -147,6 +147,26 @@ func TestEvaluateRBACWildcards(t *testing.T) {
 	}
 }
 
+func TestPackagedSSHDConfigIsReadableButNotWritable(t *testing.T) {
+	var def sensitiveFile
+	for _, item := range sensitiveFiles {
+		if item.Path == "/etc/ssh/sshd_config" {
+			def = item
+		}
+	}
+	if def.Path == "" {
+		t.Fatal("sshd_config is not in the sensitive file catalog")
+	}
+	readable := evaluateSingleFilePermission(def, 0o644)
+	if readable.Severity != model.SeverityPass {
+		t.Fatalf("packaged 0644 sshd_config severity = %s, want PASS", readable.Severity)
+	}
+	writable := evaluateSingleFilePermission(def, 0o666)
+	if writable.Severity != model.SeverityCritical {
+		t.Fatalf("world-writable sshd_config severity = %s, want CRITICAL", writable.Severity)
+	}
+}
+
 func TestEvaluateShadowFilePermissions(t *testing.T) {
 	shadowDef := sensitiveFile{Path: "/etc/shadow", ForbiddenBits: 0o037, Expected: "0640 or stricter"}
 

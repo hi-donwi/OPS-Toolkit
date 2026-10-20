@@ -58,7 +58,9 @@ var sensitiveFiles = []sensitiveFile{
 	{Path: "/etc/passwd", ForbiddenBits: 0o022, Expected: "0644"},
 	{Path: "/etc/group", ForbiddenBits: 0o022, Expected: "0644"},
 	{Path: "/etc/sudoers", ForbiddenBits: 0o037, Expected: "0440"},
-	{Path: "/etc/ssh/sshd_config", ForbiddenBits: 0o077, Expected: "0600"},
+	// sshd_config is packaged world-readable and contains no credentials.
+	// Group or other write permission is the defect, not the Ubuntu 0644 mode.
+	{Path: "/etc/ssh/sshd_config", ForbiddenBits: 0o022, Expected: "0644"},
 }
 
 func (e *Engine) checkSensitiveFilePermissions() []model.Finding {

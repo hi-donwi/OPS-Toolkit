@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +98,48 @@ func TestParseProcNetListening(t *testing.T) {
 				t.Errorf("port %d bind = %q, want %q", tc.port, bind, tc.wantBind)
 			}
 		})
+	}
+}
+
+func TestSSHDropInCanDisablePasswordAuthentication(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sshd_config.d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sshd_config"), []byte("Include sshd_config.d/*.conf\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sshd_config.d", "60-cloudimg-settings.conf"), []byte("PasswordAuthentication no\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, finding := range auditSSHConfigFile(filepath.Join(dir, "sshd_config")) {
+		if finding.ID == "SEC-SSH-002" {
+			t.Fatalf("readable drop-in disabling password authentication was ignored: %+v", finding)
+		}
+	}
+}
+
+func TestUnreadableEarlierDropInDoesNotHideLaterPasswordDisable(t *testing.T) {
+	dir := t.TempDir()
+	dropin := filepath.Join(dir, "sshd_config.d")
+	if err := os.Mkdir(dropin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sshd_config"), []byte("Include sshd_config.d/*.conf\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dropin, "50-cloud-init.conf"), []byte("PasswordAuthentication no\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dropin, "60-cloudimg-settings.conf"), []byte("PasswordAuthentication no\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, finding := range auditSSHConfigFile(filepath.Join(dir, "sshd_config")) {
+		if finding.ID == "SEC-SSH-002" {
+			t.Fatalf("later readable drop-in was discarded after an unreadable file: %+v", finding)
+		}
 	}
 }
 
