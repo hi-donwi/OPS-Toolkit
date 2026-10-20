@@ -191,6 +191,13 @@ An unrecognised `--fail-on` value is rejected rather than quietly treated as
 Collection errors fail the gate even at `--fail-on critical`. Reports include
 `collection_errors`; JSON output keeps human gate messages on stderr.
 
+SSH inspection follows readable `Include` files in order. An unreadable file,
+include cycle, unsupported syntax, or conditional `Match` block produces
+`SEC-SSH-COL-001` and operational exit 2, not an assumed safe policy. Use an
+authorized account with sufficient read access. For conditional policies,
+inspect `sshd -T -C` with the relevant connection attributes; this tool does not
+automatically elevate privileges or certify every possible SSH connection.
+
 Verify a saved report locally without running any collectors or remediation:
 
 ```bash

@@ -33,6 +33,22 @@ func TestDockerInfoInactiveSwarmIsNotActive(t *testing.T) {
 	}
 }
 
+func TestDockerInfoRequiresValidScopedSwarmState(t *testing.T) {
+	for _, test := range []struct {
+		body string
+		want bool
+	}{
+		{"{\n\"Swarm\": {\"LocalNodeState\":\t\"active\"}}", true},
+		{`{"Labels":{"LocalNodeState":"active"},"Swarm":{"LocalNodeState":"inactive"}}`, false},
+		{`{"Swarm":{"LocalNodeState":"active"`, false},
+		{`{"Swarm":{"LocalNodeState":"pending"}}`, false},
+	} {
+		if got := dockerInfoSwarmActive(test.body); got != test.want {
+			t.Errorf("membership for %q = %v, want %v", test.body, got, test.want)
+		}
+	}
+}
+
 func TestCandidateDockerSockets(t *testing.T) {
 	candidates := candidateDockerSockets()
 	if len(candidates) < 2 {

@@ -120,7 +120,7 @@ func TestSSHDropInCanDisablePasswordAuthentication(t *testing.T) {
 	}
 }
 
-func TestUnreadableEarlierDropInDoesNotHideLaterPasswordDisable(t *testing.T) {
+func TestUnreadableEarlierDropInCannotProduceASafeVerdict(t *testing.T) {
 	dir := t.TempDir()
 	dropin := filepath.Join(dir, "sshd_config.d")
 	if err := os.Mkdir(dropin, 0o755); err != nil {
@@ -129,16 +129,67 @@ func TestUnreadableEarlierDropInDoesNotHideLaterPasswordDisable(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sshd_config"), []byte("Include sshd_config.d/*.conf\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dropin, "50-cloud-init.conf"), []byte("PasswordAuthentication no\n"), 0o000); err != nil {
+	if err := os.Symlink(filepath.Join(dir, "missing.conf"), filepath.Join(dropin, "50-cloud-init.conf")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dropin, "60-cloudimg-settings.conf"), []byte("PasswordAuthentication no\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	for _, finding := range auditSSHConfigFile(filepath.Join(dir, "sshd_config")) {
-		if finding.ID == "SEC-SSH-002" {
-			t.Fatalf("later readable drop-in was discarded after an unreadable file: %+v", finding)
+	findings := auditSSHConfigFile(filepath.Join(dir, "sshd_config"))
+	if len(findings) != 1 || findings[0].Metadata["collection_error"] != "true" {
+		t.Fatalf("unreadable earlier directive must make the result incomplete: %+v", findings)
+	}
+}
+
+func TestSSHUnknownConfigurationFailsClosed(t *testing.T) {
+	for _, contents := range []string{
+		"PermitRootLogin no\nMatch User fixture\nPasswordAuthentication yes\n",
+		"PermitRootLogin invalid\nPasswordAuthentication no\n",
+		"PasswordAuthentication invalid\n",
+		"PermitRootLogin=yes\nPasswordAuthentication no\n",
+		"PermitRootLogin no unexpected\nPasswordAuthentication no\n",
+		"Include sshd_config\n",
+	} {
+		t.Run(contents, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "sshd_config")
+			if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			findings := auditSSHConfigFile(path)
+			if len(findings) != 1 || findings[0].Metadata["collection_error"] != "true" {
+				t.Fatalf("unknown configuration must not be treated as safe: %+v", findings)
+			}
+		})
+	}
+	findings := auditSSHConfigFile(filepath.Join(t.TempDir(), "missing"))
+	if len(findings) != 1 || findings[0].Metadata["collection_error"] != "true" {
+		t.Fatalf("missing root config must not disappear from coverage: %+v", findings)
+	}
+}
+
+func TestSSHIncludeFirstDirectiveWins(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "dropin"), []byte("PasswordAuthentication no\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		contents string
+		warning  bool
+	}{
+		{"Include dropin\nPasswordAuthentication yes\n", false},
+		{"PasswordAuthentication yes\nInclude dropin\n", true},
+	} {
+		path := filepath.Join(dir, "sshd_config")
+		if err := os.WriteFile(path, []byte(test.contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		warning := false
+		for _, finding := range auditSSHConfigFile(path) {
+			warning = warning || finding.ID == "SEC-SSH-002"
+		}
+		if warning != test.warning {
+			t.Fatalf("first directive precedence mismatch for %q", test.contents)
 		}
 	}
 }

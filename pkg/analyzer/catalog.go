@@ -739,6 +739,20 @@ var standardCatalog = map[string]model.Finding{
 			"Set 'PasswordAuthentication no' in /etc/ssh/sshd_config and reload sshd",
 		},
 	},
+	"SEC-SSH-COL-001": {
+		ID:         "SEC-SSH-COL-001",
+		Title:      "SSH Configuration Inspection Incomplete",
+		TargetType: model.TargetSecurity,
+		Category:   "Collection",
+		Severity:   model.SeverityWarning,
+		Resource:   "file:/etc/ssh/sshd_config",
+		Symptom:    "SSH authentication policy could not be established from complete configuration evidence.",
+		RootCause:  "Unreadable includes or unsupported conditional configuration prevent a safe verdict.",
+		RemedySteps: []string{
+			"Inspect all included files with an authorized read-only account",
+			"Check connection-specific effective settings using sshd -T -C",
+		},
+	},
 	"SEC-CRT-001": {
 		ID:         "SEC-CRT-001",
 		Title:      "TLS Certificate Expiring Soon or Expired",
